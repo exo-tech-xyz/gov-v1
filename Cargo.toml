@@ -3,6 +3,11 @@ members = [
     "cli",
 ]
 
+[workspace.dependencies]
+log = "0.4.22"
+env_logger = "0.10.2"
+tip-router-operator-cli = { path = "../jito-tip-router/tip-router-operator-cli/" }
+solana-accounts-db = { package = "solana-accounts-db", git = "https://github.com/jito-foundation/jito-solana.git", rev = "87dcd086af931d81a0a71ad49cbea38e9655f166" }
 
 [patch.crates-io]
 solana-account = { package = "solana-account", git = "https://github.com/jito-foundation/jito-solana.git", rev = "87dcd086af931d81a0a71ad49cbea38e9655f166" }
