@@ -6,8 +6,13 @@ members = [
 [workspace.dependencies]
 log = "0.4.22"
 env_logger = "0.10.2"
+meta-merkle-tree= { path = "../jito-tip-router/meta_merkle_tree/" }
 tip-router-operator-cli = { path = "../jito-tip-router/tip-router-operator-cli/" }
 solana-accounts-db = { package = "solana-accounts-db", git = "https://github.com/jito-foundation/jito-solana.git", rev = "87dcd086af931d81a0a71ad49cbea38e9655f166" }
+solana-runtime = { package = "solana-runtime", git = "https://github.com/jito-foundation/jito-solana.git", rev = "87dcd086af931d81a0a71ad49cbea38e9655f166" }
+solana-program = { package = "solana-program", git = "https://github.com/jito-foundation/jito-solana.git", rev = "87dcd086af931d81a0a71ad49cbea38e9655f166" }
+solana-sdk = { package = "solana-sdk", git = "https://github.com/jito-foundation/jito-solana.git", rev = "87dcd086af931d81a0a71ad49cbea38e9655f166" }
+anchor-lang = { git = "https://github.com/coral-xyz/anchor", rev = "96ed3b791c6fed9ab64cb138397795fe55991280" }
 
 [patch.crates-io]
 solana-account = { package = "solana-account", git = "https://github.com/jito-foundation/jito-solana.git", rev = "87dcd086af931d81a0a71ad49cbea38e9655f166" }

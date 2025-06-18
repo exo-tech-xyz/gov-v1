@@ -5,7 +5,18 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+meta-merkle-tree = { workspace = true }
 tip-router-operator-cli = { workspace = true }
 solana-accounts-db = { workspace = true }
+solana-runtime = { workspace = true }
+solana-program = { workspace = true }
+solana-sdk = { workspace = true }
+anchor-lang = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
+serde_json = "1.0.102"
+tokio = { version = "1.36.0", features = ["full"] }
+anyhow = "1.0.86"
+im = "15.1"
+itertools = "0.11"
+serde = { version = "^1.0", features = ["derive"] }

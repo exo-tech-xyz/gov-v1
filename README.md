@@ -14,7 +14,7 @@ STAKE=$(solana-keygen pubkey stake-keypair.json)
 solana-genesis   --bootstrap-validator "$IDENTITY" "$VOTE" "$STAKE"   --ledger tmp/testnet-ledger/ --
 faucet-lamports 100000000000 -u testnet --cluster-type testnet
 
-To test snapshotting with local net:
+To test snapshotting with localnet:
 1. Setup cli env
 ```
 export RESTAKING_PROGRAM_ID=11111111111111111111111111111111
@@ -22,7 +22,12 @@ export VAULT_PROGRAM_ID=11111111111111111111111111111111
 export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
 ```
 2. Start validator with `solana-test-validator`
-3. Run CLI for Snapshot for a slot (e.g. 100)
+3. Run CLI for generating Snapshot for a slot (e.g. 100)
 ```
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 100
 ```
+4. Run CLI for generating the MeteMerkleSnapshot
+```
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 100 --epoch 0
+```
+

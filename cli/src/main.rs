@@ -1,7 +1,13 @@
+use anyhow::Result;
 use clap::Parser;
+use cli::generate_meta_merkle_snapshot;
 use log::info;
 use std::path::PathBuf;
-use tip_router_operator_cli::cli::SnapshotPaths;
+use std::sync::Arc;
+use tip_router_operator_cli::{
+    cli::SnapshotPaths,
+    ledger_utils::{get_bank_from_ledger, get_bank_from_snapshot_at_slot},
+};
 
 /// Simple program to greet a person
 #[derive(Clone, Parser)]
@@ -74,9 +80,20 @@ pub enum Commands {
         #[arg(long, env)]
         slot: u64,
     },
+    GenerateMetaMerkle {
+        #[arg(long, env)]
+        slot: u64,
+
+        #[arg(long, env)]
+        epoch: u64,
+
+        #[arg(long, env, default_value = "true")]
+        save: bool,
+    },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
 
@@ -93,7 +110,7 @@ fn main() {
                 backup_snapshots_dir,
             } = cli.get_snapshot_paths();
 
-            tip_router_operator_cli::ledger_utils::get_bank_from_ledger(
+            get_bank_from_ledger(
                 cli.operator_address,
                 &ledger_path,
                 account_paths,
@@ -105,5 +122,35 @@ fn main() {
                 &cli.cluster,
             );
         }
+        // TODO: Use `epoch` and `save` arg.
+        Commands::GenerateMetaMerkle {
+            epoch: _,
+            slot,
+            save: _,
+        } => {
+            let SnapshotPaths {
+                ledger_path,
+                account_paths,
+                full_snapshots_path: _,
+                incremental_snapshots_path: _,
+                backup_snapshots_dir,
+            } = cli.get_snapshot_paths();
+
+            // We can safely expect to use the backup_snapshots_dir as the full snapshot path because
+            //  _get_bank_from_snapshot_at_slot_ expects the snapshot at the exact `slot` to have
+            //  already been taken.
+            let bank = get_bank_from_snapshot_at_slot(
+                slot,
+                &backup_snapshots_dir,
+                &backup_snapshots_dir,
+                account_paths,
+                ledger_path.as_path(),
+            )?;
+
+            let meta_merkle_snapshot = generate_meta_merkle_snapshot(&Arc::new(bank))?;
+            // meta_merkle_snapshot.save("./tmp/meta_merkle.json")?;
+            // TODO: Publish meta_merkle_snapshot.
+        }
     }
+    Ok(())
 }
