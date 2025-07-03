@@ -148,8 +148,8 @@ async fn main() -> Result<()> {
             )?;
 
             let meta_merkle_snapshot = generate_meta_merkle_snapshot(&Arc::new(bank))?;
-            // meta_merkle_snapshot.save("./tmp/meta_merkle.json")?;
-            // TODO: Publish meta_merkle_snapshot.
+            meta_merkle_snapshot.save("./tmp/meta_merkle.json")?;
+            // TODO: Compress and publish meta_merkle_snapshot.
         }
     }
     Ok(())
