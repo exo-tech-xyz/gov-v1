@@ -57,8 +57,11 @@ fn group_delegations_by_voter_pubkey_active_stake(
 }
 
 /// Creates a MetaMerkleSnapshot from the given bank.
+/// TODO: Support using manager authority of StakePool as the `voting_wallet` if the stake account is delegated by the StakePool.
 pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnapshot, Error> {
     assert!(bank.is_frozen());
+
+    println!("Bank loaded: {:?}", bank.epoch());
 
     let l_stakes = bank.stakes_cache.stakes();
     let delegations = l_stakes.stake_delegations();
@@ -69,48 +72,50 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
             bank.epoch()
         )
     });
+    println!("epoch_vote_accounts: {:?}", epoch_vote_accounts.len());
     let voter_pubkey_to_delegations =
         group_delegations_by_voter_pubkey_active_stake(delegations, bank);
 
     // 1. Generate leaf nodes for MetaMerkleTree.
     let (meta_merkle_leaves, stake_merkle_leaves_collection) = voter_pubkey_to_delegations
         .iter()
-        .map(
-            |(voter_pubkey, delegations)| -> (MetaMerkleLeaf, Vec<StakeMerkleLeaf>) {
-                // 1. Create leaf nodes for StakeMerkleTree.
-                let mut stake_merkle_leaves = delegations
-                    .iter()
-                    .map(|delegation| StakeMerkleLeaf {
-                        voting_wallet: delegation.withdrawer_pubkey,
-                        stake_account: delegation.stake_account_pubkey,
-                        active_stake: delegation.lamports_delegated,
-                    })
-                    .collect::<Vec<StakeMerkleLeaf>>();
+        .filter_map(|(voter_pubkey, delegations)| {
+            let (vote_account_stake, vote_account) =
+                epoch_vote_accounts.get(voter_pubkey).or_else(|| {
+                    eprintln!("Missing vote account for voter pubkey: {}", voter_pubkey);
+                    None
+                })?;
 
-                // 2. Sort leaves by stake account key.
-                stake_merkle_leaves.sort_by_key(|leaf| leaf.stake_account);
+            // 1. Create leaf nodes for StakeMerkleTree.
+            let mut stake_merkle_leaves = delegations
+                .iter()
+                .map(|delegation| StakeMerkleLeaf {
+                    voting_wallet: delegation.withdrawer_pubkey,
+                    stake_account: delegation.stake_account_pubkey,
+                    active_stake: delegation.lamports_delegated,
+                })
+                .collect::<Vec<StakeMerkleLeaf>>();
 
-                // 3. Build StakeMerkleTree to get a root node.
-                let hashed_nodes: Vec<[u8; 32]> = stake_merkle_leaves
-                    .iter()
-                    .map(|n| n.hash().to_bytes())
-                    .collect();
-                let stake_merkle = MerkleTree::new(&hashed_nodes[..], true);
+            // 2. Sort leaves by stake account key.
+            stake_merkle_leaves.sort_by_key(|leaf| leaf.stake_account);
 
-                // 4. Build MetaMerkleLeaf using root node of StakeMerkleTree.
-                let (vote_account_stake, vote_account) =
-                    epoch_vote_accounts.get(voter_pubkey).unwrap();
+            // 3. Build StakeMerkleTree to get a root node.
+            let hashed_nodes: Vec<[u8; 32]> = stake_merkle_leaves
+                .iter()
+                .map(|n| n.hash().to_bytes())
+                .collect();
+            let stake_merkle = MerkleTree::new(&hashed_nodes[..], true);
 
-                let meta_merkle_leaf = MetaMerkleLeaf {
-                    vote_account: *voter_pubkey,
-                    voting_wallet: vote_account.vote_state().authorized_withdrawer,
-                    stake_merkle_root: *stake_merkle.get_root().unwrap(),
-                    active_stake: *vote_account_stake,
-                };
+            // 4. Build MetaMerkleLeaf using root node of StakeMerkleTree.
+            let meta_merkle_leaf = MetaMerkleLeaf {
+                vote_account: *voter_pubkey,
+                voting_wallet: vote_account.vote_state().authorized_withdrawer,
+                stake_merkle_root: *stake_merkle.get_root().unwrap(),
+                active_stake: *vote_account_stake,
+            };
 
-                (meta_merkle_leaf, stake_merkle_leaves)
-            },
-        )
+            Some((meta_merkle_leaf, stake_merkle_leaves))
+        })
         .collect::<(Vec<MetaMerkleLeaf>, Vec<Vec<StakeMerkleLeaf>>)>();
 
     // 2. Sort leaves by vote account key.
