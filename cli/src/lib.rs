@@ -7,9 +7,9 @@ use itertools::Itertools;
 use meta_merkle_tree::{
     generated_merkle_tree::Delegation, merkle_tree::MerkleTree, utils::get_proof,
 };
-use solana_program::{stake_history::StakeHistory, sysvar};
+use solana_program::{pubkey::Pubkey, stake_history::StakeHistory, sysvar};
 use solana_runtime::{bank::Bank, stakes::StakeAccount};
-use solana_sdk::{account::from_account, pubkey::Pubkey};
+use solana_sdk::account::from_account;
 use std::sync::Arc;
 
 /// Given an [EpochStakes] object, return delegations grouped by voter_pubkey (validator delegated to).
@@ -110,7 +110,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
             let meta_merkle_leaf = MetaMerkleLeaf {
                 vote_account: *voter_pubkey,
                 voting_wallet: vote_account.vote_state().authorized_withdrawer,
-                stake_merkle_root: *stake_merkle.get_root().unwrap(),
+                stake_merkle_root: stake_merkle.get_root().unwrap().to_bytes(),
                 active_stake: *vote_account_stake,
             };
 
@@ -149,7 +149,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
         .collect();
 
     Ok(MetaMerkleSnapshot {
-        root: *meta_merkle.get_root().unwrap(),
+        root: meta_merkle.get_root().unwrap().to_bytes(),
         leaf_bundles: meta_merkle_bundles,
         slot: bank.slot(),
     })
