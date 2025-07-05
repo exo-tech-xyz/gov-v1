@@ -1,5 +1,6 @@
 target
 .cargo/
+node_modules/
 test-ledger/
 tmp/
 .DS_Store

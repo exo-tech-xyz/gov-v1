@@ -1,14 +1,15 @@
-use serde::{Deserialize, Serialize};
-use serde_json;
-use solana_program::hash::hashv;
-use solana_sdk::{hash::Hash, pubkey::Pubkey};
-use std::fs::File;
-use std::io::Write;
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::{
+    hash::{hashv, Hash},
+    pubkey::Pubkey,
+};
+use std::fs;
+use std::io;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct MetaMerkleSnapshot {
     /// Hash of MetaMerkleTree
-    pub root: Hash,
+    pub root: [u8; 32],
     /// Each bundle contains the meta-level leaf, its stake-level leaves, and proof.
     pub leaf_bundles: Vec<MetaMerkleLeafBundle>,
     /// Slot where the tree was generated.
@@ -16,15 +17,13 @@ pub struct MetaMerkleSnapshot {
 }
 
 impl MetaMerkleSnapshot {
-    pub fn save(&self, path: &str) -> std::io::Result<()> {
-        let json = serde_json::to_string_pretty(self).expect("Failed to serialize");
-        let mut file = File::create(path)?;
-        file.write_all(json.as_bytes())?;
-        Ok(())
+    pub fn save(&self, path: &str) -> io::Result<()> {
+        let data = self.try_to_vec()?; // let caller handle serialization failure
+        fs::write(path, data)
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct MetaMerkleLeafBundle {
     /// MetaMerkleLeaf constructed from the StakeMerkleTree.
     pub meta_merkle_leaf: MetaMerkleLeaf,
@@ -34,7 +33,7 @@ pub struct MetaMerkleLeafBundle {
     pub proof: Option<Vec<[u8; 32]>>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct StakeMerkleLeaf {
     /// Wallet designated for governance voting for the stake account.
     pub voting_wallet: Pubkey,
@@ -54,7 +53,7 @@ impl StakeMerkleLeaf {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct MetaMerkleLeaf {
     /// Wallet designated for governance voting for the vote account.
     pub voting_wallet: Pubkey,
@@ -62,7 +61,7 @@ pub struct MetaMerkleLeaf {
     pub vote_account: Pubkey,
     /// Root hash of the StakeMerkleTree, representing all active stake accounts
     /// delegated to the current vote account.
-    pub stake_merkle_root: Hash,
+    pub stake_merkle_root: [u8; 32],
     /// Total active delegated stake under this vote account.
     pub active_stake: u64,
 }
@@ -72,7 +71,7 @@ impl MetaMerkleLeaf {
         hashv(&[
             &self.voting_wallet.to_bytes(),
             &self.vote_account.to_bytes(),
-            &self.stake_merkle_root.to_bytes(),
+            &self.stake_merkle_root,
             &self.active_stake.to_le_bytes(),
         ])
     }
