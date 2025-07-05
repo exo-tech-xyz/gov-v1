@@ -2,6 +2,5 @@ target
 .cargo/
 node_modules/
 test-ledger/
-test-ledger3/
 tmp/
 .DS_Store

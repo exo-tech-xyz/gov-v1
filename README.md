@@ -28,7 +28,7 @@ RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn ca
 ```
 4. Run CLI for generating the MeteMerkleSnapshot
 ```
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger3 --full-snapshots-path test-ledger3/backup-snapshots --backup-snapshots-dir test-ledger3/backup-snapshots generate-meta-merkle --slot 340850340 --epoch 0
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --epoch 0
 ```
 
 To test snapshots on testnet.
@@ -45,7 +45,7 @@ export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
 ```
 5. Clear temp files from test-ledger directory
 ```
-find test-ledger3 -mindepth 1 -maxdepth 1 \
+find test-ledger -mindepth 1 -maxdepth 1 \
   ! -name 'backup-snapshots' \
   ! -name 'rocksdb' \
   ! -name 'genesis.bin' \
