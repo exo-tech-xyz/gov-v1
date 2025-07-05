@@ -17,8 +17,8 @@ faucet-lamports 100000000000 -u testnet --cluster-type testnet
 To test snapshotting with localnet:
 1. Setup cli env
 ```
-export RESTAKING_PROGRAM_ID=11111111111111111111111111111111
-export VAULT_PROGRAM_ID=11111111111111111111111111111111
+export RESTAKING_PROGRAM_ID=RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q
+export VAULT_PROGRAM_ID=Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8
 export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
 ```
 2. Start validator with `solana-test-validator`
@@ -28,6 +28,26 @@ RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn ca
 ```
 4. Run CLI for generating the MeteMerkleSnapshot
 ```
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 100 --epoch 0
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger3 --full-snapshots-path test-ledger3/backup-snapshots --backup-snapshots-dir test-ledger3/backup-snapshots generate-meta-merkle --slot 340850340 --epoch 0
 ```
 
+To test snapshots on testnet.
+1. Run `solana gossip -u testnet`
+2. Find a testnet node download a snapshot and genesis config from
+`wget --trust-server-names http://64.34.80.79:8899/snapshot.tar.bz2`
+`wget http://160.202.131.117:8899/genesis.tar.bz2`
+3. Run `tar -xf genesis.tar.bz2 -C test-ledger/` and move snapshot to `test-ledger/backup-snapshots/`.
+4. Setup cli env (if needed)
+```
+export RESTAKING_PROGRAM_ID=11111111111111111111111111111111
+export VAULT_PROGRAM_ID=11111111111111111111111111111111
+export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
+```
+5. Clear temp files from test-ledger directory
+```
+find test-ledger3 -mindepth 1 -maxdepth 1 \
+  ! -name 'backup-snapshots' \
+  ! -name 'rocksdb' \
+  ! -name 'genesis.bin' \
+  -exec rm -rf {} +
+```
