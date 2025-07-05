@@ -73,13 +73,9 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
             bank.epoch()
         )
     });
-    println!("epoch_vote_accounts: {:?}", epoch_vote_accounts.len());
+    println!("Vote Accounts Count: {:?}", epoch_vote_accounts.len());
     let voter_pubkey_to_delegations =
-        group_delegations_by_voter_pubkey_active_stake(delegations, bank)
-            .into_iter()
-            .collect::<HashMap<_, _>>();
-
-    println!("map size: {:?}", voter_pubkey_to_delegations.len());
+        group_delegations_by_voter_pubkey_active_stake(delegations, bank);
 
     // 1. Generate leaf nodes for MetaMerkleTree.
     let (meta_merkle_leaves, stake_merkle_leaves_collection) = voter_pubkey_to_delegations
