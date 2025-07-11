@@ -1,10 +1,12 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use flate2::{write::GzEncoder, Compression};
 use solana_program::{
     hash::{hashv, Hash},
     pubkey::Pubkey,
 };
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, BufReader, BufWriter, Read, Write};
+use std::path::Path;
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct MetaMerkleSnapshot {
@@ -18,8 +20,18 @@ pub struct MetaMerkleSnapshot {
 
 impl MetaMerkleSnapshot {
     pub fn save(&self, path: &str) -> io::Result<()> {
-        let data = self.try_to_vec()?; // let caller handle serialization failure
+        let data = self.try_to_vec()?;
         fs::write(path, data)
+    }
+
+    pub fn save_compressed(&self, path: &str) -> io::Result<()> {
+        let data = self.try_to_vec()?;
+        let file = File::create(path)?;
+        let mut enc = GzEncoder::new(file, Compression::default());
+        enc.write_all(&data)?;
+        enc.finish()?;
+
+        Ok(())
     }
 }
 

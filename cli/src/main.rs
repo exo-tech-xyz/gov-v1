@@ -149,10 +149,10 @@ async fn main() -> Result<()> {
 
             let meta_merkle_snapshot = generate_meta_merkle_snapshot(&Arc::new(bank))?;
 
-            let file_path = format!("./tmp/meta_merkle-{}.bin", slot);
-            meta_merkle_snapshot.save(file_path.as_str())?;
+            let file_path = format!("./tmp/meta_merkle-{}.zip", slot);
+            meta_merkle_snapshot.save_compressed(file_path.as_str())?;
 
-            // TODO: Compress and publish meta_merkle_snapshot.
+            // TODO: publish file (e.g. upload to S3/IPFS/etc.)
         }
     }
     Ok(())
