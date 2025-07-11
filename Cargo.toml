@@ -2,6 +2,7 @@
 members = [
     "cli",
     "programs/*",
+    "tests"
 ]
 
 resolver = "2"
