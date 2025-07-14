@@ -15,7 +15,7 @@ declare_id!("HQrwhDzMa7dEnUi2Nku925yeAAxioFhqpLMpQ4g6Zh5N");
 pub mod gov_v1 {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        initialize::handler(ctx)
+    pub fn init_program_config(ctx: Context<InitProgramConfig>) -> Result<()> {
+        init_program_config::handler(ctx)
     }
 }
