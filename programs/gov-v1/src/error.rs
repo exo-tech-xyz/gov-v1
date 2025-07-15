@@ -18,4 +18,8 @@ pub enum ErrorCode {
     ConsensusNotReached,
     #[msg("Invalid ballot")]
     InvalidBallot,
+    #[msg("Invalid merkle inputs")]
+    InvalidMerkleInputs,
+    #[msg("Invalid merkle proof")]
+    InvalidMerkleProof,
 }
