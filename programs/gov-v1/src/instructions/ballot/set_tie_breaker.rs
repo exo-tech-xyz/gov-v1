@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::{error::ErrorCode, BallotBox, ProgramConfig};
 
 #[derive(Accounts)]
-pub struct CastVote<'info> {
+pub struct SetTieBreaker<'info> {
     pub tie_breaker_admin: Signer<'info>,
     #[account(mut)]
     pub ballot_box: Box<Account<'info, BallotBox>>,
@@ -11,7 +11,7 @@ pub struct CastVote<'info> {
     pub program_config: Box<Account<'info, ProgramConfig>>,
 }
 
-pub fn handler(ctx: Context<CastVote>, ballot_index: u8) -> Result<()> {
+pub fn handler(ctx: Context<SetTieBreaker>, ballot_index: u8) -> Result<()> {
     let ballot_box = &mut ctx.accounts.ballot_box;
     let clock = Clock::get()?;
     require!(
