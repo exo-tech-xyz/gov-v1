@@ -29,6 +29,10 @@ pub struct BallotBox {
 }
 
 impl BallotBox {
+    pub fn pda(ballot_id: u64) -> (Pubkey, u8) {
+        Pubkey::find_program_address(&[b"BallotBox", &ballot_id.to_le_bytes()], &crate::ID)
+    }
+
     pub fn has_vote_expired(&self, current_timestamp: i64) -> bool {
         current_timestamp >= self.vote_expiry_timestamp
     }
@@ -39,7 +43,7 @@ impl BallotBox {
 }
 
 /// Inner struct of BallotBox
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Default)]
 pub struct Ballot {
     /// The merkle root of the meta merkle tree
     pub meta_merkle_root: [u8; 32],
@@ -48,7 +52,7 @@ pub struct Ballot {
 }
 
 /// Inner struct of BallotBox
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq)]
 pub struct OperatorVote {
     /// The operator that cast the vote
     pub operator: Pubkey,
@@ -59,7 +63,7 @@ pub struct OperatorVote {
 }
 
 /// Inner struct of BallotBox
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq)]
 pub struct BallotTally {
     /// Index of the tally within the ballot_tallies
     pub index: u8,

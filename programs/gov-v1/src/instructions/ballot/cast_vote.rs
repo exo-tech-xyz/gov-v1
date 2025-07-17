@@ -64,11 +64,14 @@ pub fn handler(ctx: Context<CastVote>, ballot: Ballot) -> Result<()> {
     };
     ballot_box.operator_votes.push(new_operator_vote);
 
-    // Set winning ballot if consensus threshold is reached.
-    let tally_bps = u64::from(tally) * 10000 / (program_config.whitelisted_operators.len() as u64);
-    if tally_bps >= ballot_box.min_consensus_threshold_bps.into() {
-        ballot_box.slot_consensus_reached = clock.slot;
-        ballot_box.winning_ballot = ballot;
+    // Set winning ballot if consensus threshold is reached (for first time).
+    if !ballot_box.has_consensus_reached() {
+        let tally_bps =
+            u64::from(tally) * 10000 / (program_config.whitelisted_operators.len() as u64);
+        if tally_bps >= ballot_box.min_consensus_threshold_bps.into() {
+            ballot_box.slot_consensus_reached = clock.slot;
+            ballot_box.winning_ballot = ballot;
+        }
     }
 
     Ok(())

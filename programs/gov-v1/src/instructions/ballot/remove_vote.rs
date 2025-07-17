@@ -39,12 +39,10 @@ pub fn handler(ctx: Context<RemoveVote>) -> Result<()> {
         return err!(ErrorCode::OperatorHasNotVoted);
     }
 
-    // Decrement tally on BallotTally and remove from vec if new tally is zero.
+    // Decrement tally on BallotTally. BallotTally is kept even when tally is 0 to maintain
+    // order of indices.
     let ballot_tally = &mut ballot_box.ballot_tallies[ballot_index as usize];
     ballot_tally.tally = ballot_tally.tally.checked_sub(1).unwrap();
-    if ballot_tally.tally == 0 {
-        ballot_box.ballot_tallies.remove(ballot_index as usize);
-    }
 
     Ok(())
 }

@@ -25,6 +25,7 @@ pub fn handler(
     }
     if let Some(min_consensus_threshold_bps) = min_consensus_threshold_bps {
         require_gt!(min_consensus_threshold_bps, 0);
+        require_gte!(10000, min_consensus_threshold_bps);
         program_config.min_consensus_threshold_bps = min_consensus_threshold_bps;
     }
     if let Some(tie_breaker_admin) = tie_breaker_admin {

@@ -19,6 +19,17 @@ pub struct MetaMerkleProof {
 }
 
 impl MetaMerkleProof {
+    pub fn pda(consensus_result: &Pubkey, vote_account: &Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                b"MetaMerkleProof",
+                consensus_result.as_ref(),
+                vote_account.as_ref(),
+            ],
+            &crate::ID,
+        )
+    }
+
     pub fn init_space(meta_merkle_proof: Vec<[u8; 32]>) -> usize {
         72 + MetaMerkleLeaf::INIT_SPACE + 4 + 32 * meta_merkle_proof.len()
     }

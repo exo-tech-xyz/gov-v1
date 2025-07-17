@@ -22,6 +22,10 @@ pub struct ProgramConfig {
 }
 
 impl ProgramConfig {
+    pub fn pda() -> (Pubkey, u8) {
+        Pubkey::find_program_address(&[b"ProgramConfig"], &crate::ID)
+    }
+
     pub fn remove_operators(&mut self, operators_to_remove: Option<Vec<Pubkey>>) {
         if let Some(operators) = operators_to_remove {
             let remove_set: HashSet<Pubkey> = operators.into_iter().collect();
