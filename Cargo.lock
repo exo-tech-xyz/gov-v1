@@ -9827,7 +9827,9 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "anchor-client",
+ "borsh 0.10.4",
  "gov-v1",
+ "meta-merkle-tree",
 ]
 
 [[package]]

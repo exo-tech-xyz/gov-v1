@@ -4,6 +4,7 @@ use anchor_lang::{
 };
 
 #[account]
+#[derive(Debug)]
 pub struct MetaMerkleProof {
     /// Payer wallet
     pub payer: Pubkey,
@@ -35,7 +36,7 @@ impl MetaMerkleProof {
     }
 }
 
-#[derive(Clone, Debug, AnchorDeserialize, AnchorSerialize, InitSpace)]
+#[derive(Clone, Debug, AnchorDeserialize, AnchorSerialize, InitSpace, PartialEq)]
 pub struct MetaMerkleLeaf {
     /// Wallet designated for governance voting for the vote account.
     pub voting_wallet: Pubkey,

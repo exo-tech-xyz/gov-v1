@@ -1,266 +1,31 @@
 use std::{str::FromStr, thread, time::Duration};
 
 use anchor_client::{
-    anchor_lang::{system_program, AccountDeserialize},
-    solana_client::rpc_config::RpcTransactionConfig,
     solana_sdk::{
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
-        signature::{read_keypair_file, Keypair, Signature},
+        signature::{read_keypair_file, Keypair},
         signer::Signer,
     },
     Client, ClientError, Cluster, Program,
 };
 use gov_v1::{
-    accounts, instruction, Ballot, BallotBox, BallotTally, ConsensusResult, MetaMerkleLeaf,
-    MetaMerkleProof, OperatorVote, ProgramConfig,
+    Ballot, BallotBox, BallotTally, ConsensusResult, MetaMerkleProof, OperatorVote, ProgramConfig,
 };
 
-pub struct ProgramTestContext {
-    pub payer: Keypair,
-    pub program_config_pda: Pubkey,
-    pub operators: Vec<Keypair>,
-}
+use crate::utils::{
+    assert::assert_client_err, data_types::ProgramTestContext, fetch_utils::*, merkle::*,
+    send_utils::*,
+};
 
 const VOTE_DURATION: i64 = 10;
 const MIN_CONSENSUS_BPS: u16 = 6666;
 
-pub fn assert_client_err(res: Result<Signature, ClientError>, msg: &str) {
-    assert!(res.unwrap_err().to_string().contains(msg))
-}
-
-pub fn setup_program_config(payer: &Keypair, program: &Program<&Keypair>) -> ProgramTestContext {
-    let (program_config_pda, _bump) = ProgramConfig::pda();
-    program
-        .request()
-        .accounts(accounts::InitProgramConfig {
-            payer: payer.pubkey(),
-            authority: payer.pubkey(),
-            program_config: program_config_pda,
-            system_program: system_program::ID,
-        })
-        .args(instruction::InitProgramConfig {})
-        .send()
-        .unwrap();
-
-    let operator_keypairs: Vec<Keypair> = (0..10).map(|_| Keypair::new()).collect();
-    let operators_to_add: Vec<Pubkey> = operator_keypairs.iter().map(|x| x.pubkey()).collect();
-
-    program
-        .request()
-        .accounts(accounts::UpdateOperatorWhitelist {
-            authority: payer.pubkey(),
-            program_config: program_config_pda,
-        })
-        .args(instruction::UpdateOperatorWhitelist {
-            operators_to_add: Some(operators_to_add.clone()),
-            operators_to_remove: None,
-        })
-        .send()
-        .unwrap();
-
-    program
-        .request()
-        .accounts(accounts::UpdateProgramConfig {
-            authority: payer.pubkey(),
-            program_config: program_config_pda,
-        })
-        .args(instruction::UpdateProgramConfig {
-            new_authority: None,
-            min_consensus_threshold_bps: Some(MIN_CONSENSUS_BPS),
-            tie_breaker_admin: Some(payer.pubkey()),
-            vote_duration: Some(VOTE_DURATION),
-        })
-        .send()
-        .unwrap();
-
-    ProgramTestContext {
-        payer: payer.insecure_clone(),
-        program_config_pda,
-        operators: operator_keypairs,
-    }
-}
-
-pub fn fetch_program_config(
+fn test_program_config(
+    program: &Program<&Keypair>,
     context: &ProgramTestContext,
-    program: &Program<&Keypair>,
-) -> ProgramConfig {
-    let account_data = program
-        .rpc()
-        .get_account(&context.program_config_pda)
-        .unwrap();
-    ProgramConfig::try_deserialize(&mut account_data.data.as_ref()).unwrap()
-}
-
-pub fn fetch_ballot_box(program: &Program<&Keypair>, pubkey: &Pubkey) -> BallotBox {
-    let account_data = program.rpc().get_account(pubkey).unwrap();
-    BallotBox::try_deserialize(&mut account_data.data.as_ref()).unwrap()
-}
-
-pub fn fetch_consensus_result(program: &Program<&Keypair>, pubkey: &Pubkey) -> ConsensusResult {
-    let account_data = program.rpc().get_account(pubkey).unwrap();
-    ConsensusResult::try_deserialize(&mut account_data.data.as_ref()).unwrap()
-}
-
-pub fn fetch_tx_block_details(program: &Program<&Keypair>, tx: Signature) -> (u64, i64) {
-    let tx_details = program
-        .rpc()
-        .get_transaction_with_config(
-            &tx,
-            RpcTransactionConfig {
-                encoding: None,
-                commitment: Some(CommitmentConfig::confirmed()),
-                max_supported_transaction_version: None,
-            },
-        )
-        .unwrap();
-    (tx_details.slot, tx_details.block_time.unwrap())
-}
-
-pub fn send_cast_vote(
-    program: &Program<&Keypair>,
-    operator: &Keypair,
-    program_config: Pubkey,
-    ballot_box: Pubkey,
-    ballot: Ballot,
-) -> Result<Signature, ClientError> {
-    program
-        .request()
-        .accounts(accounts::CastVote {
-            operator: operator.pubkey(),
-            ballot_box,
-            program_config,
-        })
-        .args(instruction::CastVote { ballot })
-        .signer(operator)
-        .send()
-}
-
-pub fn send_init_ballot_box(
-    program: &Program<&Keypair>,
-    operator: &Keypair,
-    program_config: Pubkey,
-    ballot_box: Pubkey,
-) -> Result<Signature, ClientError> {
-    program
-        .request()
-        .accounts(accounts::InitBallotBox {
-            payer: program.payer(),
-            operator: operator.pubkey(),
-            ballot_box,
-            program_config,
-            system_program: system_program::ID,
-        })
-        .args(instruction::InitBallotBox {})
-        .signer(operator)
-        .send()
-}
-
-pub fn send_remove_vote(
-    program: &Program<&Keypair>,
-    operator: &Keypair,
-    program_config: Pubkey,
-    ballot_box: Pubkey,
-) -> Result<Signature, ClientError> {
-    program
-        .request()
-        .accounts(accounts::RemoveVote {
-            operator: operator.pubkey(),
-            ballot_box,
-            program_config,
-        })
-        .args(instruction::RemoveVote {})
-        .signer(operator)
-        .send()
-}
-
-pub fn send_finalize_ballot(
-    program: &Program<&Keypair>,
-    ballot_box: Pubkey,
-    consensus_result: Pubkey,
-) -> Result<Signature, ClientError> {
-    program
-        .request()
-        .accounts(accounts::FinalizeBallot {
-            payer: program.payer(),
-            ballot_box,
-            consensus_result,
-            system_program: system_program::ID,
-        })
-        .args(instruction::FinalizeBallot {})
-        .send()
-}
-
-pub fn send_set_tie_breaker(
-    program: &Program<&Keypair>,
-    tie_breaker_admin: &Keypair,
-    ballot_box: Pubkey,
-    program_config: Pubkey,
-    ballot_index: u8,
-) -> Result<Signature, ClientError> {
-    program
-        .request()
-        .accounts(accounts::SetTieBreaker {
-            tie_breaker_admin: tie_breaker_admin.pubkey(),
-            ballot_box,
-            program_config,
-        })
-        .args(instruction::SetTieBreaker { ballot_index })
-        .signer(tie_breaker_admin)
-        .send()
-}
-
-pub fn send_init_meta_merkle_proof(
-    program: &Program<&Keypair>,
-    meta_merkle_proof_pda: Pubkey,
-    consensus_result: Pubkey,
-    meta_merkle_leaf: MetaMerkleLeaf,
-    meta_merkle_proof: Vec<[u8; 32]>,
-    close_timestamp: i64,
-) -> Result<Signature, ClientError> {
-    program
-        .request()
-        .accounts(accounts::InitMetaMerkleProof {
-            payer: program.payer(),
-            merkle_proof: meta_merkle_proof_pda,
-            consensus_result,
-            system_program: system_program::ID,
-        })
-        .args(instruction::InitMetaMerkleProof {
-            meta_merkle_leaf,
-            meta_merkle_proof,
-            close_timestamp,
-        })
-        .send()
-}
-
-pub fn send_close_meta_merkle_proof(
-    program: &Program<&Keypair>,
-    meta_merkle_proof: Pubkey,
-) -> Result<Signature, ClientError> {
-    program
-        .request()
-        .accounts(accounts::CloseMetaMerkleProof {
-            payer: program.payer(),
-            meta_merkle_proof,
-            system_program: system_program::ID,
-        })
-        .args(instruction::CloseMetaMerkleProof {})
-        .send()
-}
-
-fn test_program_config(program: &Program<&Keypair>, context: &ProgramTestContext) {
-    program
-        .request()
-        .accounts(accounts::InitProgramConfig {
-            payer: program.payer(),
-            authority: program.payer(),
-            program_config: context.program_config_pda,
-            system_program: system_program::ID,
-        })
-        .args(instruction::InitProgramConfig {})
-        .send()
-        .unwrap();
+) -> Result<(), ClientError> {
+    send_init_program_config(program, &context.payer, context.program_config_pda)?;
 
     // Verify values in ProgramConfig
     let program_config = fetch_program_config(context, program);
@@ -274,18 +39,13 @@ fn test_program_config(program: &Program<&Keypair>, context: &ProgramTestContext
     // Add operators
     let operators_to_add: Vec<Pubkey> = context.operators.iter().map(|x| x.pubkey()).collect();
 
-    program
-        .request()
-        .accounts(accounts::UpdateOperatorWhitelist {
-            authority: program.payer(),
-            program_config: context.program_config_pda,
-        })
-        .args(instruction::UpdateOperatorWhitelist {
-            operators_to_add: Some(operators_to_add.clone()),
-            operators_to_remove: None,
-        })
-        .send()
-        .unwrap();
+    send_update_operator_whitelist(
+        program,
+        &context.payer,
+        context.program_config_pda,
+        Some(operators_to_add.clone()),
+        None,
+    )?;
 
     // Verify values in ProgramConfig
     let program_config = fetch_program_config(context, program);
@@ -293,18 +53,14 @@ fn test_program_config(program: &Program<&Keypair>, context: &ProgramTestContext
 
     // Remove operators
     let operators_to_remove = operators_to_add[8..].to_vec();
-    program
-        .request()
-        .accounts(accounts::UpdateOperatorWhitelist {
-            authority: program.payer(),
-            program_config: context.program_config_pda,
-        })
-        .args(instruction::UpdateOperatorWhitelist {
-            operators_to_add: None,
-            operators_to_remove: Some(operators_to_remove),
-        })
-        .send()
-        .unwrap();
+
+    send_update_operator_whitelist(
+        program,
+        &context.payer,
+        context.program_config_pda,
+        None,
+        Some(operators_to_remove),
+    )?;
 
     // Verify values in ProgramConfig
     let program_config = fetch_program_config(context, program);
@@ -313,20 +69,15 @@ fn test_program_config(program: &Program<&Keypair>, context: &ProgramTestContext
         operators_to_add[..8].to_vec()
     );
 
-    program
-        .request()
-        .accounts(accounts::UpdateProgramConfig {
-            authority: program.payer(),
-            program_config: context.program_config_pda,
-        })
-        .args(instruction::UpdateProgramConfig {
-            new_authority: None,
-            min_consensus_threshold_bps: Some(MIN_CONSENSUS_BPS),
-            tie_breaker_admin: Some(program.payer()),
-            vote_duration: Some(VOTE_DURATION),
-        })
-        .send()
-        .unwrap();
+    send_update_program_config(
+        program,
+        &context.payer,
+        context.program_config_pda,
+        None,
+        Some(MIN_CONSENSUS_BPS),
+        Some(program.payer()),
+        Some(VOTE_DURATION),
+    )?;
 
     // Verify values in ProgramConfig
     let program_config = fetch_program_config(context, program);
@@ -342,6 +93,8 @@ fn test_program_config(program: &Program<&Keypair>, context: &ProgramTestContext
     );
     assert_eq!(program_config.next_ballot_id, 0);
     assert_eq!(program_config.vote_duration, VOTE_DURATION);
+
+    Ok(())
 }
 
 fn test_balloting(
@@ -377,6 +130,20 @@ fn test_balloting(
     // Check that next_ballot_id is incremented
     let program_config = fetch_program_config(context, program);
     assert_eq!(program_config.next_ballot_id, 1);
+
+    // Casting an invalid ballot fails.
+    let ballot1 = Ballot {
+        meta_merkle_root: [0; 32],
+        snapshot_hash: [2; 32],
+    };
+    let tx = send_cast_vote(
+        program,
+        operator1,
+        context.program_config_pda,
+        ballot_box_pda,
+        ballot1.clone(),
+    );
+    assert_client_err(tx, "Invalid ballot");
 
     // Operator 1 casts a vote.
     let ballot1 = Ballot {
@@ -418,6 +185,16 @@ fn test_balloting(
     assert_eq!(ballot_box.ballot_tallies, expected_ballot_tallies);
     assert_eq!(ballot_box.vote_expiry_timestamp, vote_expiry_timestamp);
 
+    // Casting ballot for non-whitelisted operator should fail.
+    let tx = send_cast_vote(
+        program,
+        &Keypair::new(),
+        context.program_config_pda,
+        ballot_box_pda,
+        ballot1.clone(),
+    );
+    assert_client_err(tx, "Operator not whitelisted");
+
     // Operator 2 casts a different vote.
     let operator2 = &context.operators[1];
     let ballot2 = Ballot {
@@ -454,7 +231,7 @@ fn test_balloting(
 
     // Operator 3, 4, 5, 6, 7 casts ballot 3.
     let ballot3 = Ballot {
-        meta_merkle_root: [3; 32],
+        meta_merkle_root: context.meta_merkle_snapshot.root,
         snapshot_hash: [4; 32],
     };
     for i in 2..7 {
@@ -712,6 +489,16 @@ fn test_tie_breaker(
     )?;
     let (consensus_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
 
+    // Casting vote after expiry should
+    let tx = send_cast_vote(
+        program,
+        &context.operators[7],
+        context.program_config_pda,
+        ballot_box_pda,
+        ballot1.clone(),
+    );
+    assert_client_err(tx, "Voting has expired");
+
     // Verify that consensus is reached.
     let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
     assert_eq!(ballot_box.slot_consensus_reached, consensus_slot);
@@ -739,14 +526,117 @@ fn test_tie_breaker(
     Ok(())
 }
 
-fn test_merkle_proof(
+fn test_merkle_proofs(
     program: &Program<&Keypair>,
     context: &ProgramTestContext,
 ) -> Result<(), ClientError> {
-    //   let vote_account = &Pubkey::new_unique();
-    //   let (consensus_result_pda, _bump) = ConsensusResult::pda(0);
-    //   let (merkle_proof_pda, _bump) = MetaMerkleProof::pda(&consensus_result_pda, vote_account);
-    // send_init_meta_merkle_proof(program, merkle_proof_pda, consensus_result_pda,  )
+    let bundle = &context.meta_merkle_snapshot.leaf_bundles[0];
+    let meta_proof = bundle.proof.clone().unwrap();
+    let meta_leaf = bundle.meta_merkle_leaf.clone();
+
+    let (consensus_result_pda, _bump) = ConsensusResult::pda(0);
+    let (merkle_proof_pda, _bump) =
+        MetaMerkleProof::pda(&consensus_result_pda, &meta_leaf.vote_account);
+
+    // Init MetaMerkleProof
+    send_init_meta_merkle_proof(
+        program,
+        merkle_proof_pda,
+        consensus_result_pda,
+        meta_leaf,
+        meta_proof.clone(),
+        1,
+    )?;
+
+    let merkle_proof = fetch_merkle_proof(program, &merkle_proof_pda);
+    assert_eq!(merkle_proof.payer, program.payer());
+    assert_eq!(merkle_proof.consensus_result, consensus_result_pda);
+    assert_eq!(merkle_proof.meta_merkle_leaf, bundle.meta_merkle_leaf);
+    assert_eq!(merkle_proof.meta_merkle_proof, meta_proof);
+    assert_eq!(merkle_proof.close_timestamp, 1);
+
+    // Verifies that leaf exist in root stored in consensus result.
+    send_verify_merkle_proof(program, consensus_result_pda, merkle_proof_pda, None, None)?;
+
+    // Verify for stake accounts under this vote account.
+    let stake_leaves = &bundle.stake_merkle_leaves;
+    for (j, stake_leaf) in stake_leaves.iter().take(5).enumerate() {
+        let stake_proof = get_stake_merkle_proof(stake_leaves.clone(), j);
+        send_verify_merkle_proof(
+            program,
+            consensus_result_pda,
+            merkle_proof_pda,
+            Some(stake_proof),
+            Some(stake_leaf.clone()),
+        )?;
+    }
+
+    // Close MetaMerkleProof
+    send_close_meta_merkle_proof(program, &context.payer, merkle_proof_pda)?;
+
+    // Check that its closed.
+    program
+        .rpc()
+        .get_account(&merkle_proof_pda)
+        .expect_err("AccountNotFound");
+    Ok(())
+}
+
+fn test_invalid_merkle_proofs(
+    program: &Program<&Keypair>,
+    context: &ProgramTestContext,
+) -> Result<(), ClientError> {
+    let bundle1 = &context.meta_merkle_snapshot.leaf_bundles[0];
+    let bundle2 = &context.meta_merkle_snapshot.leaf_bundles[1];
+    let meta_leaf1 = bundle1.meta_merkle_leaf.clone();
+    let meta_proof1 = bundle1.proof.clone().unwrap();
+    let meta_proof2 = bundle2.proof.clone().unwrap();
+
+    let (consensus_result_pda, _bump) = ConsensusResult::pda(0);
+    let (merkle_proof_pda, _bump) =
+        MetaMerkleProof::pda(&consensus_result_pda, &meta_leaf1.vote_account);
+
+    // Init MetaMerkleProof should fail when proof is invalid.
+    let tx = send_init_meta_merkle_proof(
+        program,
+        merkle_proof_pda,
+        consensus_result_pda,
+        meta_leaf1.clone(),
+        meta_proof2.clone(),
+        1,
+    );
+    assert_client_err(tx, "Invalid merkle proof");
+
+    // Init MetaMerkleProof for bundle1.
+    send_init_meta_merkle_proof(
+        program,
+        merkle_proof_pda,
+        consensus_result_pda,
+        meta_leaf1.clone(),
+        meta_proof1.clone(),
+        1,
+    )?;
+
+    // Verity should fail with invalid proof from bundle2.
+    let stake_leaves = &bundle2.stake_merkle_leaves;
+    let stake_proof = get_stake_merkle_proof(stake_leaves.clone(), 0);
+    let tx = send_verify_merkle_proof(
+        program,
+        consensus_result_pda,
+        merkle_proof_pda,
+        Some(stake_proof.clone()),
+        Some(stake_leaves[0].clone()),
+    );
+    assert_client_err(tx, "Invalid merkle proof");
+
+    let tx = send_verify_merkle_proof(
+        program,
+        consensus_result_pda,
+        merkle_proof_pda,
+        Some(stake_proof),
+        None,
+    );
+    assert_client_err(tx, "Invalid merkle inputs");
 
     Ok(())
 }
@@ -763,13 +653,23 @@ fn test_full_program_flow() {
 
     let (program_config_pda, _bump) = ProgramConfig::pda();
     let operator_keypairs: Vec<Keypair> = (0..10).map(|_| Keypair::new()).collect();
+
+    let path = format!(
+        "{}/src/fixtures/meta_merkle.bin",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    println!("path {}", path);
+    let meta_merkle_snapshot = read_meta_merkle_snapshot(&path).unwrap();
+
     let context = ProgramTestContext {
         payer: payer.insecure_clone(),
         program_config_pda,
         operators: operator_keypairs,
+        meta_merkle_snapshot,
     };
-
-    test_program_config(&program, &context);
+    test_program_config(&program, &context).unwrap();
     test_balloting(&program, &context).unwrap();
+    test_merkle_proofs(&program, &context).unwrap();
+    test_invalid_merkle_proofs(&program, &context).unwrap();
     test_tie_breaker(&program, &context).unwrap();
 }

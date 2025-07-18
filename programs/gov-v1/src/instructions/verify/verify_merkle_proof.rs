@@ -1,26 +1,23 @@
 use anchor_lang::{prelude::*, solana_program::hash::Hash};
 
 use crate::{
-    error::ErrorCode, merkle_helper::verify_helper, ConsensusResult, MetaMerkleLeaf,
-    MetaMerkleProof, StakeMerkleLeaf,
+    error::ErrorCode, merkle_helper::verify_helper, ConsensusResult, MetaMerkleProof,
+    StakeMerkleLeaf,
 };
 
 #[derive(Accounts)]
-#[instruction(meta_merkle_leaf: MetaMerkleLeaf, meta_merkle_proof: Vec<[u8; 32]>)]
 pub struct VerifyMerkleProof<'info> {
     #[account(has_one = consensus_result)]
     pub meta_merkle_proof: Box<Account<'info, MetaMerkleProof>>,
     pub consensus_result: Box<Account<'info, ConsensusResult>>,
 }
 
-pub fn handler(
-    ctx: Context<VerifyMerkleProof>,
+pub fn verify_shared_handler<'info>(
+    meta_merkle_proof: &Account<'info, MetaMerkleProof>,
+    consensus_result: &Account<'info, ConsensusResult>,
     stake_merkle_proof: Option<Vec<[u8; 32]>>,
     stake_merkle_leaf: Option<StakeMerkleLeaf>,
 ) -> Result<()> {
-    let meta_merkle_proof = &ctx.accounts.meta_merkle_proof;
-    let consensus_result = &ctx.accounts.consensus_result;
-
     if stake_merkle_leaf.is_some() && stake_merkle_proof.is_some() {
         let proof_vec = stake_merkle_proof.unwrap();
         let stake_merkle_leaf_data = stake_merkle_leaf.unwrap();
@@ -48,4 +45,20 @@ pub fn handler(
     )?;
 
     Ok(())
+}
+
+pub fn handler(
+    ctx: Context<VerifyMerkleProof>,
+    stake_merkle_proof: Option<Vec<[u8; 32]>>,
+    stake_merkle_leaf: Option<StakeMerkleLeaf>,
+) -> Result<()> {
+    let meta_merkle_proof = &ctx.accounts.meta_merkle_proof;
+    let consensus_result = &ctx.accounts.consensus_result;
+
+    verify_shared_handler(
+        meta_merkle_proof,
+        consensus_result,
+        stake_merkle_proof,
+        stake_merkle_leaf,
+    )
 }

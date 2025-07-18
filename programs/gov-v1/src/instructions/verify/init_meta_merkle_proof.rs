@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{ConsensusResult, MetaMerkleLeaf, MetaMerkleProof};
+use crate::{verify_shared_handler, ConsensusResult, MetaMerkleLeaf, MetaMerkleProof};
 
 #[derive(Accounts)]
 #[instruction(meta_merkle_leaf: MetaMerkleLeaf, meta_merkle_proof: Vec<[u8; 32]>)]
@@ -35,6 +35,14 @@ pub fn handler(
     merkle_proof.meta_merkle_leaf = meta_merkle_leaf;
     merkle_proof.meta_merkle_proof = meta_merkle_proof;
     merkle_proof.close_timestamp = close_timestamp;
+
+    // Verify using the provided proof that the leaf exists in consensus result root.
+    verify_shared_handler(
+        &ctx.accounts.merkle_proof,
+        &ctx.accounts.consensus_result,
+        None,
+        None,
+    )?;
 
     Ok(())
 }
