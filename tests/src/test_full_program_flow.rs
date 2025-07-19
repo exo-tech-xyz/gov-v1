@@ -1,4 +1,4 @@
-use std::{str::FromStr, thread, time::Duration};
+use std::{cmp::min, str::FromStr, thread, time::Duration};
 
 use anchor_client::{
     solana_sdk::{
@@ -9,13 +9,13 @@ use anchor_client::{
     },
     Client, ClientError, Cluster, Program,
 };
+use cli::MetaMerkleSnapshot;
 use gov_v1::{
     Ballot, BallotBox, BallotTally, ConsensusResult, MetaMerkleProof, OperatorVote, ProgramConfig,
 };
 
 use crate::utils::{
-    assert::assert_client_err, data_types::ProgramTestContext, fetch_utils::*, merkle::*,
-    send_utils::*,
+    assert::assert_client_err, data_types::ProgramTestContext, fetch_utils::*, send_utils::*,
 };
 
 const VOTE_DURATION: i64 = 10;
@@ -560,14 +560,14 @@ fn test_merkle_proofs(
 
     // Verify for stake accounts under this vote account.
     let stake_leaves = &bundle.stake_merkle_leaves;
-    for (j, stake_leaf) in stake_leaves.iter().take(5).enumerate() {
-        let stake_proof = get_stake_merkle_proof(stake_leaves.clone(), j);
+    for i in 0..min(5, stake_leaves.len()) {
+        let stake_proof = bundle.clone().get_stake_merkle_proof(i);
         send_verify_merkle_proof(
             program,
             consensus_result_pda,
             merkle_proof_pda,
             Some(stake_proof),
-            Some(stake_leaf.clone()),
+            Some(stake_leaves[i].clone()),
         )?;
     }
 
@@ -617,9 +617,9 @@ fn test_invalid_merkle_proofs(
         1,
     )?;
 
-    // Verity should fail with invalid proof from bundle2.
+    // Verify should fail with invalid proof from bundle2.
     let stake_leaves = &bundle2.stake_merkle_leaves;
-    let stake_proof = get_stake_merkle_proof(stake_leaves.clone(), 0);
+    let stake_proof = bundle2.clone().get_stake_merkle_proof(0);
     let tx = send_verify_merkle_proof(
         program,
         consensus_result_pda,
@@ -642,14 +642,12 @@ fn test_invalid_merkle_proofs(
 }
 
 #[test]
-fn test_full_program_flow() {
-    let program_id = "HQrwhDzMa7dEnUi2Nku925yeAAxioFhqpLMpQ4g6Zh5N";
+fn main() {
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
 
     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
-    let program_id = Pubkey::from_str(program_id).unwrap();
-    let program = client.program(program_id).unwrap();
+    let program = client.program(gov_v1::id()).unwrap();
 
     let (program_config_pda, _bump) = ProgramConfig::pda();
     let operator_keypairs: Vec<Keypair> = (0..10).map(|_| Keypair::new()).collect();
@@ -659,7 +657,7 @@ fn test_full_program_flow() {
         env!("CARGO_MANIFEST_DIR")
     );
     println!("path {}", path);
-    let meta_merkle_snapshot = read_meta_merkle_snapshot(&path).unwrap();
+    let meta_merkle_snapshot = MetaMerkleSnapshot::read(&path).unwrap();
 
     let context = ProgramTestContext {
         payer: payer.insecure_clone(),
@@ -667,7 +665,7 @@ fn test_full_program_flow() {
         operators: operator_keypairs,
         meta_merkle_snapshot,
     };
-    test_program_config(&program, &context).unwrap();
+    test_program_config(&program, &context);
     test_balloting(&program, &context).unwrap();
     test_merkle_proofs(&program, &context).unwrap();
     test_invalid_merkle_proofs(&program, &context).unwrap();

@@ -1681,6 +1681,7 @@ dependencies = [
  "clap 4.5.23",
  "env_logger 0.10.2",
  "flate2",
+ "gov-v1",
  "im",
  "itertools 0.11.0",
  "log",
@@ -9828,6 +9829,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-client",
  "borsh 0.10.4",
+ "cli",
  "gov-v1",
  "meta-merkle-tree",
 ]

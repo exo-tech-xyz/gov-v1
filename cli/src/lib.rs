@@ -4,6 +4,7 @@ use im::HashMap;
 pub use merkle::*;
 
 use anyhow::Error;
+use gov_v1::{MetaMerkleLeaf, StakeMerkleLeaf};
 use itertools::Itertools;
 use meta_merkle_tree::{
     generated_merkle_tree::Delegation, merkle_tree::MerkleTree, utils::get_proof,

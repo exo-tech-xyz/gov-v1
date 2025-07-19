@@ -1,5 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use flate2::{write::GzEncoder, Compression};
+use gov_v1::{MetaMerkleLeaf, StakeMerkleLeaf};
+use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
 use solana_program::{
     hash::{hashv, Hash},
     pubkey::Pubkey,
@@ -33,6 +35,13 @@ impl MetaMerkleSnapshot {
 
         Ok(())
     }
+
+    pub fn read(path: &str) -> io::Result<Self> {
+        let mut file = File::open(path)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+        Self::try_from_slice(&buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
 }
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
@@ -45,46 +54,14 @@ pub struct MetaMerkleLeafBundle {
     pub proof: Option<Vec<[u8; 32]>>,
 }
 
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
-pub struct StakeMerkleLeaf {
-    /// Wallet designated for governance voting for the stake account.
-    pub voting_wallet: Pubkey,
-    /// The stake account address.
-    pub stake_account: Pubkey,
-    /// Active delegated stake amount.
-    pub active_stake: u64,
-}
-
-impl StakeMerkleLeaf {
-    pub fn hash(&self) -> Hash {
-        hashv(&[
-            &self.voting_wallet.to_bytes(),
-            &self.stake_account.to_bytes(),
-            &self.active_stake.to_le_bytes(),
-        ])
-    }
-}
-
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
-pub struct MetaMerkleLeaf {
-    /// Wallet designated for governance voting for the vote account.
-    pub voting_wallet: Pubkey,
-    /// Validator's vote account.
-    pub vote_account: Pubkey,
-    /// Root hash of the StakeMerkleTree, representing all active stake accounts
-    /// delegated to the current vote account.
-    pub stake_merkle_root: [u8; 32],
-    /// Total active delegated stake under this vote account.
-    pub active_stake: u64,
-}
-
-impl MetaMerkleLeaf {
-    pub fn hash(&self) -> Hash {
-        hashv(&[
-            &self.voting_wallet.to_bytes(),
-            &self.vote_account.to_bytes(),
-            &self.stake_merkle_root,
-            &self.active_stake.to_le_bytes(),
-        ])
+impl MetaMerkleLeafBundle {
+    pub fn get_stake_merkle_proof(self, index: usize) -> Vec<[u8; 32]> {
+        let hashed_nodes: Vec<[u8; 32]> = self
+            .stake_merkle_leaves
+            .iter()
+            .map(|n| n.hash().to_bytes())
+            .collect();
+        let stake_merkle = MerkleTree::new(&hashed_nodes[..], true);
+        get_proof(&stake_merkle, index)
     }
 }
