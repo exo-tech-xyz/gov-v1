@@ -80,8 +80,6 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
             .into_iter()
             .collect::<HashMap<_, _>>();
 
-    println!("map size: {:?}", voter_pubkey_to_delegations.len());
-
     // 1. Generate leaf nodes for MetaMerkleTree.
     let (meta_merkle_leaves, stake_merkle_leaves_collection) = voter_pubkey_to_delegations
         .iter()
