@@ -1,7 +1,6 @@
 #![allow(ambiguous_glob_reexports)]
 #![allow(unexpected_cfgs)] // See: https://solana.stackexchange.com/a/19845
 
-pub mod constants;
 pub mod error;
 pub mod instructions;
 pub mod merkle_helper;
@@ -9,7 +8,6 @@ pub mod state;
 
 use anchor_lang::prelude::*;
 
-pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
