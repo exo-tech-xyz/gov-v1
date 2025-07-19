@@ -1,6 +1,8 @@
 target
 .cargo/
-node_modules/
-test-ledger/
+test-ledger*
 tmp/
 .DS_Store
+.anchor
+**/*.rs.bk
+node_modules

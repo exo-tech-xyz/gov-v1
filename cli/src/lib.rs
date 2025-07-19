@@ -4,6 +4,7 @@ use im::HashMap;
 pub use merkle::*;
 
 use anyhow::Error;
+use gov_v1::{MetaMerkleLeaf, StakeMerkleLeaf};
 use itertools::Itertools;
 use meta_merkle_tree::{
     generated_merkle_tree::Delegation, merkle_tree::MerkleTree, utils::get_proof,
@@ -75,7 +76,9 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
     });
     println!("Vote Accounts Count: {:?}", epoch_vote_accounts.len());
     let voter_pubkey_to_delegations =
-        group_delegations_by_voter_pubkey_active_stake(delegations, bank);
+        group_delegations_by_voter_pubkey_active_stake(delegations, bank)
+            .into_iter()
+            .collect::<HashMap<_, _>>();
 
     // 1. Generate leaf nodes for MetaMerkleTree.
     let (meta_merkle_leaves, stake_merkle_leaves_collection) = voter_pubkey_to_delegations

@@ -1,7 +1,7 @@
 [package]
 name = "cli"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -20,3 +20,4 @@ anyhow = "1.0.86"
 im = "15.1"
 itertools = "0.11"
 borsh = { version = "0.10.3" }
+gov-v1 = { version = "0.1.0", path = "../programs/gov-v1" }
