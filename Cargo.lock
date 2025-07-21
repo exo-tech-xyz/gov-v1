@@ -1683,6 +1683,7 @@ dependencies = [
  "env_logger 0.10.2",
  "flate2",
  "gov-v1",
+ "hex",
  "im",
  "itertools 0.11.0",
  "log",
