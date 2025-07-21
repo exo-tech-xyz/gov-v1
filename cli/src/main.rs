@@ -5,14 +5,13 @@ use anchor_client::{
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
         signature::{read_keypair_file, Keypair},
-        signer::Signer,
     },
-    Client, ClientError, Cluster, Program,
+    Client, Cluster, Program,
 };
 use anyhow::Result;
 use clap::Parser;
 use cli::generate_meta_merkle_snapshot;
-use gov_v1::{BallotBox, ProgramConfig};
+use gov_v1::{BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig};
 use log::info;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -35,6 +34,8 @@ fn parse_pubkey(s: &str) -> Result<Pubkey, String> {
 pub enum LogType {
     ProgramConfig,
     BallotBox,
+    ConsensusResult,
+    MetaMerkleProof,
 }
 
 /// Simple program to greet a person
@@ -110,6 +111,8 @@ fn parse_log_type(s: &str) -> Result<LogType, String> {
     match s.to_lowercase().as_str() {
         "program-config" => Ok(LogType::ProgramConfig),
         "ballot-box" => Ok(LogType::BallotBox),
+        "consensus-result" => Ok(LogType::ConsensusResult),
+        "proof" => Ok(LogType::MetaMerkleProof),
         _ => Err(format!("invalid log type: {}", s)),
     }
 }
@@ -159,7 +162,9 @@ pub enum Commands {
     Log {
         #[arg(long, help = "Index of ballot box to fetch")]
         ballot_id: Option<u64>,
-        #[arg(long, value_parser = parse_log_type, help = "Account type: program-config | ballot-box")]
+        #[arg(long, value_parser = parse_pubkey)]
+        vote_account: Option<Pubkey>,
+        #[arg(long, value_parser = parse_log_type, help = "Account type: program-config | ballot-box | consensus-result | proof")]
         ty: LogType,
     },
 }
@@ -170,8 +175,11 @@ fn main() -> Result<()> {
 
     match cli.command {
         // === On-chain Instructions ===
-        /// Initialize ProgramConfig on-chain
-        Commands::Log { ballot_id, ty } => {
+        Commands::Log {
+            ballot_id,
+            vote_account,
+            ty,
+        } => {
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let client: Client<&Keypair> =
                 Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
@@ -185,6 +193,24 @@ fn main() -> Result<()> {
                 LogType::BallotBox => {
                     let data: BallotBox = program.account(
                         BallotBox::pda(ballot_id.expect("Missing --ballot-id argument")).0,
+                    )?;
+                    println!("{:?}", data);
+                }
+                LogType::ConsensusResult => {
+                    let data: ConsensusResult = program.account(
+                        ConsensusResult::pda(ballot_id.expect("Missing --ballot-id argument")).0,
+                    )?;
+                    println!("{:?}", data);
+                }
+                LogType::MetaMerkleProof => {
+                    let consensus_result_pda =
+                        ConsensusResult::pda(ballot_id.expect("Missing --ballot-id argument")).0;
+                    let data: MetaMerkleProof = program.account(
+                        MetaMerkleProof::pda(
+                            &consensus_result_pda,
+                            &vote_account.expect("Missing --vote-account argument"),
+                        )
+                        .0,
                     )?;
                     println!("{:?}", data);
                 }
@@ -266,7 +292,6 @@ fn main() -> Result<()> {
         Commands::RemoveVote {} => {}
         Commands::SetTieBreaker {} => {}
         // === Snapshot Processing ===
-        /// Create a snapshot at a specific slot
         Commands::SnapshotSlot { slot } => {
             info!("Snapshotting slot...");
 
@@ -292,7 +317,6 @@ fn main() -> Result<()> {
             );
         }
         // TODO: Use `epoch` and `save` arg.
-        /// Generates merkle tree from snapshot and save file locally
         Commands::GenerateMetaMerkle {
             epoch: _,
             slot,
