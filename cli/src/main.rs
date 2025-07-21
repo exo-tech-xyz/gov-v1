@@ -23,7 +23,8 @@ use tip_router_operator_cli::{
 };
 
 use crate::send_utils::{
-    send_init_program_config, send_update_operator_whitelist, send_update_program_config,
+    send_init_ballot_box, send_init_program_config, send_update_operator_whitelist,
+    send_update_program_config,
 };
 
 fn parse_pubkey(s: &str) -> Result<Pubkey, String> {
@@ -33,6 +34,7 @@ fn parse_pubkey(s: &str) -> Result<Pubkey, String> {
 #[derive(Clone, Debug)]
 pub enum LogType {
     ProgramConfig,
+    BallotBox,
 }
 
 /// Simple program to greet a person
@@ -107,6 +109,7 @@ impl Cli {
 fn parse_log_type(s: &str) -> Result<LogType, String> {
     match s.to_lowercase().as_str() {
         "program-config" => Ok(LogType::ProgramConfig),
+        "ballot-box" => Ok(LogType::BallotBox),
         _ => Err(format!("invalid log type: {}", s)),
     }
 }
@@ -154,8 +157,8 @@ pub enum Commands {
     RemoveVote {},
     SetTieBreaker {},
     Log {
-        // #[arg(long, help = "Pubkey of the account to fetch")]
-        // pubkey: Pubkey,
+        #[arg(long, help = "Index of ballot box to fetch")]
+        ballot_id: Option<u64>,
         #[arg(long, value_parser = parse_log_type, help = "Account type: program-config | ballot-box")]
         ty: LogType,
     },
@@ -168,7 +171,7 @@ fn main() -> Result<()> {
     match cli.command {
         // === On-chain Instructions ===
         /// Initialize ProgramConfig on-chain
-        Commands::Log { ty } => {
+        Commands::Log { ballot_id, ty } => {
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let client: Client<&Keypair> =
                 Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
@@ -177,6 +180,12 @@ fn main() -> Result<()> {
             match ty {
                 LogType::ProgramConfig => {
                     let data: ProgramConfig = program.account(ProgramConfig::pda().0)?;
+                    println!("{:?}", data);
+                }
+                LogType::BallotBox => {
+                    let data: BallotBox = program.account(
+                        BallotBox::pda(ballot_id.expect("Missing --ballot-id argument")).0,
+                    )?;
                     println!("{:?}", data);
                 }
             }
@@ -236,7 +245,22 @@ fn main() -> Result<()> {
             )?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::InitBallotBox {} => {}
+        Commands::InitBallotBox {} => {
+            info!("InitBallotBox...");
+
+            let payer = read_keypair_file(&cli.payer_path).unwrap();
+            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let client: Client<&Keypair> =
+                Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+            let program: Program<&Keypair> = client.program(gov_v1::id()).unwrap();
+
+            let program_config_pda = ProgramConfig::pda().0;
+            let program_config: ProgramConfig = program.account(program_config_pda)?;
+            let ballot_box_pda = BallotBox::pda(program_config.next_ballot_id).0;
+            let tx =
+                send_init_ballot_box(&program, &authority, program_config_pda, ballot_box_pda)?;
+            info!("Transaction sent: {}", tx);
+        }
         Commands::FinalizeBallot {} => {}
         Commands::CastVote {} => {}
         Commands::RemoveVote {} => {}
