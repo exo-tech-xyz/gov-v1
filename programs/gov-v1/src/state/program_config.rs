@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use anchor_lang::prelude::*;
 
-#[derive(InitSpace)]
+#[derive(InitSpace, Debug)]
 #[account]
 pub struct ProgramConfig {
     /// Authority allowed to update the config.

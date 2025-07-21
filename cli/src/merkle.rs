@@ -2,13 +2,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use flate2::{write::GzEncoder, Compression};
 use gov_v1::{MetaMerkleLeaf, StakeMerkleLeaf};
 use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
-use solana_program::{
-    hash::{hashv, Hash},
-    pubkey::Pubkey,
-};
 use std::fs::{self, File};
-use std::io::{self, BufReader, BufWriter, Read, Write};
-use std::path::Path;
+use std::io::{self, Read, Write};
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct MetaMerkleSnapshot {

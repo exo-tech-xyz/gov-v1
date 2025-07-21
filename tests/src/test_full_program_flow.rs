@@ -647,7 +647,7 @@ fn main() {
     let payer = read_keypair_file(&anchor_wallet).unwrap();
 
     let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
-    let program = client.program(gov_v1::id()).unwrap();
+    let program: Program<&Keypair> = client.program(gov_v1::id()).unwrap();
 
     let (program_config_pda, _bump) = ProgramConfig::pda();
     let operator_keypairs: Vec<Keypair> = (0..10).map(|_| Keypair::new()).collect();

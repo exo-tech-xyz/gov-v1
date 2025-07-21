@@ -1,20 +1,50 @@
+pub mod send_utils;
+
+use anchor_client::{
+    solana_sdk::{
+        commitment_config::CommitmentConfig,
+        pubkey::Pubkey,
+        signature::{read_keypair_file, Keypair},
+        signer::Signer,
+    },
+    Client, ClientError, Cluster, Program,
+};
 use anyhow::Result;
 use clap::Parser;
 use cli::generate_meta_merkle_snapshot;
+use gov_v1::{BallotBox, ProgramConfig};
 use log::info;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use tip_router_operator_cli::{
     cli::SnapshotPaths,
     ledger_utils::{get_bank_from_ledger, get_bank_from_snapshot_at_slot},
 };
 
+use crate::send_utils::{
+    send_init_program_config, send_update_operator_whitelist, send_update_program_config,
+};
+
+fn parse_pubkey(s: &str) -> Result<Pubkey, String> {
+    Pubkey::from_str(s).map_err(|e| format!("invalid pubkey: {e}"))
+}
+
+#[derive(Clone, Debug)]
+pub enum LogType {
+    ProgramConfig,
+}
+
 /// Simple program to greet a person
 #[derive(Clone, Parser)]
 #[command(author, version, about)]
 struct Cli {
-    // #[arg(short, long, env)]
-    // pub keypair_path: String,
+    #[arg(short, long, env)]
+    pub payer_path: String,
+
+    #[arg(short, long, env)]
+    pub authority_path: String,
+
     #[arg(short, long, env, default_value = "11111111111111111111111111111111")]
     pub operator_address: String,
 
@@ -74,6 +104,13 @@ impl Cli {
     }
 }
 
+fn parse_log_type(s: &str) -> Result<LogType, String> {
+    match s.to_lowercase().as_str() {
+        "program-config" => Ok(LogType::ProgramConfig),
+        _ => Err(format!("invalid log type: {}", s)),
+    }
+}
+
 #[derive(clap::Subcommand, Clone)]
 pub enum Commands {
     SnapshotSlot {
@@ -90,14 +127,122 @@ pub enum Commands {
         #[arg(long, env, default_value = "true")]
         save: bool,
     },
+    InitProgramConfig {},
+    UpdateOperatorWhitelist {
+        #[arg(long, value_delimiter = ',', value_parser = parse_pubkey)]
+        add: Option<Vec<Pubkey>>,
+
+        #[arg(long, value_delimiter = ',', value_parser = parse_pubkey)]
+        remove: Option<Vec<Pubkey>>,
+    },
+    UpdateProgramConfig {
+        #[arg(long, value_parser = parse_pubkey)]
+        new_authority: Option<Pubkey>,
+
+        #[arg(long)]
+        min_consensus_threshold_bps: Option<u16>,
+
+        #[arg(long, value_parser = parse_pubkey)]
+        tie_breaker_admin: Option<Pubkey>,
+
+        #[arg(long)]
+        vote_duration: Option<i64>,
+    },
+    InitBallotBox {},
+    FinalizeBallot {},
+    CastVote {},
+    RemoveVote {},
+    SetTieBreaker {},
+    Log {
+        // #[arg(long, help = "Pubkey of the account to fetch")]
+        // pubkey: Pubkey,
+        #[arg(long, value_parser = parse_log_type, help = "Account type: program-config | ballot-box")]
+        ty: LogType,
+    },
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
 
     match cli.command {
+        // === On-chain Instructions ===
+        /// Initialize ProgramConfig on-chain
+        Commands::Log { ty } => {
+            let payer = read_keypair_file(&cli.payer_path).unwrap();
+            let client: Client<&Keypair> =
+                Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+            let program: Program<&Keypair> = client.program(gov_v1::id()).unwrap();
+
+            match ty {
+                LogType::ProgramConfig => {
+                    let data: ProgramConfig = program.account(ProgramConfig::pda().0)?;
+                    println!("{:?}", data);
+                }
+            }
+        }
+        Commands::InitProgramConfig {} => {
+            info!("InitProgramConfig...");
+
+            let payer = read_keypair_file(&cli.payer_path).unwrap();
+            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let client: Client<&Keypair> =
+                Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+            let program: Program<&Keypair> = client.program(gov_v1::id()).unwrap();
+
+            let tx = send_init_program_config(&program, &authority, ProgramConfig::pda().0)?;
+            info!("Transaction sent: {}", tx);
+        }
+        Commands::UpdateOperatorWhitelist { add, remove } => {
+            info!("UpdateOperatorWhitelist...");
+
+            let payer = read_keypair_file(&cli.payer_path).unwrap();
+            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let client: Client<&Keypair> =
+                Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+            let program: Program<&Keypair> = client.program(gov_v1::id()).unwrap();
+
+            let tx = send_update_operator_whitelist(
+                &program,
+                &authority,
+                ProgramConfig::pda().0,
+                add,
+                remove,
+            )?;
+            info!("Transaction sent: {}", tx);
+        }
+        Commands::UpdateProgramConfig {
+            new_authority,
+            min_consensus_threshold_bps,
+            tie_breaker_admin,
+            vote_duration,
+        } => {
+            info!("UpdateProgramConfig...");
+
+            let payer = read_keypair_file(&cli.payer_path).unwrap();
+            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let client: Client<&Keypair> =
+                Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+            let program: Program<&Keypair> = client.program(gov_v1::id()).unwrap();
+
+            let tx = send_update_program_config(
+                &program,
+                &authority,
+                ProgramConfig::pda().0,
+                new_authority,
+                min_consensus_threshold_bps,
+                tie_breaker_admin,
+                vote_duration,
+            )?;
+            info!("Transaction sent: {}", tx);
+        }
+        Commands::InitBallotBox {} => {}
+        Commands::FinalizeBallot {} => {}
+        Commands::CastVote {} => {}
+        Commands::RemoveVote {} => {}
+        Commands::SetTieBreaker {} => {}
+        // === Snapshot Processing ===
+        /// Create a snapshot at a specific slot
         Commands::SnapshotSlot { slot } => {
             info!("Snapshotting slot...");
 
@@ -123,6 +268,7 @@ async fn main() -> Result<()> {
             );
         }
         // TODO: Use `epoch` and `save` arg.
+        /// Generates merkle tree from snapshot and save file locally
         Commands::GenerateMetaMerkle {
             epoch: _,
             slot,
