@@ -35,8 +35,9 @@ struct Cli {
     #[arg(short, long, env, default_value = "11111111111111111111111111111111")]
     pub operator_address: String,
 
-    // #[arg(short, long, env, default_value = "http://localhost:8899")]
-    // pub rpc_url: String,
+    #[arg(short, long, env, default_value = "http://localhost:8899")]
+    pub rpc_url: String,
+
     #[arg(short, long, env, default_value = "test-ledger")]
     pub ledger_path: PathBuf,
 
@@ -49,26 +50,11 @@ struct Cli {
     // #[arg(short, long, env, default_value = "tmp/snapshot-output")]
     // pub snapshot_output_dir: PathBuf,
 
-    // #[arg(long, env, default_value = "false")]
-    // pub submit_as_memo: bool,
-    /// The price to pay for priority fee
     // #[arg(long, env, default_value_t = 1)]
     // pub micro_lamports: u64,
 
     // #[arg(long, env, help = "Path to save data (formerly meta-merkle-tree-dir)")]
     // pub save_path: Option<PathBuf>,
-
-    // #[arg(long, env, default_value = "/tmp/claim_tips_epoch.txt")]
-    // pub claim_tips_epoch_filepath: PathBuf,
-
-    #[arg(long, env, default_value = "mainnet")]
-    pub cluster: String,
-
-    // #[arg(long, env, default_value = "local")]
-    // pub region: String,
-
-    // #[arg(long, env, default_value = "8899")]
-    // pub localhost_port: u16,
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -131,29 +117,29 @@ pub enum Commands {
     InitBallotBox {},
     FinalizeBallot {
         #[arg(long, help = "Id of ballot box")]
-        ballot_id: u64,
+        id: u64,
     },
     CastVote {
         #[arg(long, help = "Id of ballot box")]
-        ballot_id: u64,
-        #[arg(long, value_parser = parse_hex_32)]
-        meta_merkle_root: [u8; 32],
-        #[arg(long, value_parser = parse_hex_32)]
-        snapshot_hash: [u8; 32],
+        id: u64,
+        #[arg(long, value_parser = parse_base_58_32, help = "Meta merkle tree root, base-58 encoded.")]
+        root: [u8; 32],
+        #[arg(long, value_parser = parse_base_58_32, help = "SHA256 hash of the meta merkle snapshot, base-58 encoded.")]
+        hash: [u8; 32],
     },
     RemoveVote {
         #[arg(long, help = "Id of ballot box")]
-        ballot_id: u64,
+        id: u64,
     },
     SetTieBreaker {
         #[arg(long, help = "Id of ballot box")]
-        ballot_id: u64,
+        id: u64,
         #[arg(long, help = "Index in ballot tallies to set as winning ballot")]
-        ballot_index: u8,
+        idx: u8,
     },
     Log {
         #[arg(long, help = "Id of ballot box to fetch")]
-        ballot_id: Option<u64>,
+        id: Option<u64>,
         #[arg(long, value_parser = parse_pubkey)]
         vote_account: Option<Pubkey>,
         #[arg(long, value_parser = parse_log_type, help = "Account type: program-config | ballot-box | consensus-result | proof")]
@@ -165,23 +151,24 @@ fn main() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
 
-    fn load_client_program(payer: &Keypair) -> Program<&Keypair> {
-        let client: Client<&Keypair> =
-            Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
+    fn load_client_program(payer: &Keypair, rpc_url: String) -> Program<&Keypair> {
+        let client: Client<&Keypair> = Client::new_with_options(
+            Cluster::Custom(rpc_url.clone(), rpc_url),
+            payer,
+            CommitmentConfig::confirmed(),
+        );
         client.program(gov_v1::id()).unwrap()
     }
 
     match cli.command {
         // === On-chain Instructions ===
         Commands::Log {
-            ballot_id,
+            id,
             vote_account,
             ty,
         } => {
             let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let client: Client<&Keypair> =
-                Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
-            let program: Program<&Keypair> = client.program(gov_v1::id()).unwrap();
+            let program = load_client_program(&payer, cli.rpc_url);
 
             match ty {
                 LogType::ProgramConfig => {
@@ -189,20 +176,18 @@ fn main() -> Result<()> {
                     println!("{:?}", data);
                 }
                 LogType::BallotBox => {
-                    let data: BallotBox = program.account(
-                        BallotBox::pda(ballot_id.expect("Missing --ballot-id argument")).0,
-                    )?;
+                    let data: BallotBox =
+                        program.account(BallotBox::pda(id.expect("Missing --id argument")).0)?;
                     println!("{:?}", data);
                 }
                 LogType::ConsensusResult => {
-                    let data: ConsensusResult = program.account(
-                        ConsensusResult::pda(ballot_id.expect("Missing --ballot-id argument")).0,
-                    )?;
+                    let data: ConsensusResult = program
+                        .account(ConsensusResult::pda(id.expect("Missing --id argument")).0)?;
                     println!("{:?}", data);
                 }
                 LogType::MetaMerkleProof => {
                     let consensus_result_pda =
-                        ConsensusResult::pda(ballot_id.expect("Missing --ballot-id argument")).0;
+                        ConsensusResult::pda(id.expect("Missing --id argument")).0;
                     let data: MetaMerkleProof = program.account(
                         MetaMerkleProof::pda(
                             &consensus_result_pda,
@@ -219,7 +204,7 @@ fn main() -> Result<()> {
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer);
+            let program = load_client_program(&payer, cli.rpc_url);
 
             let tx = send_init_program_config(&program, &authority, ProgramConfig::pda().0)?;
             info!("Transaction sent: {}", tx);
@@ -229,7 +214,7 @@ fn main() -> Result<()> {
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer);
+            let program = load_client_program(&payer, cli.rpc_url);
 
             let tx = send_update_operator_whitelist(
                 &program,
@@ -250,7 +235,7 @@ fn main() -> Result<()> {
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer);
+            let program = load_client_program(&payer, cli.rpc_url);
 
             let tx = send_update_program_config(
                 &program,
@@ -268,7 +253,7 @@ fn main() -> Result<()> {
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer);
+            let program = load_client_program(&payer, cli.rpc_url);
 
             let program_config_pda = ProgramConfig::pda().0;
             let program_config: ProgramConfig = program.account(program_config_pda)?;
@@ -277,74 +262,65 @@ fn main() -> Result<()> {
                 send_init_ballot_box(&program, &authority, program_config_pda, ballot_box_pda)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::CastVote {
-            ballot_id,
-            meta_merkle_root,
-            snapshot_hash,
-        } => {
+        Commands::CastVote { id, root, hash } => {
             info!("CastVote...");
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer);
+            let program = load_client_program(&payer, cli.rpc_url);
 
             let program_config_pda = ProgramConfig::pda().0;
-            let ballot_box_pda = BallotBox::pda(ballot_id).0;
+            let ballot_box_pda = BallotBox::pda(id).0;
             let tx = send_cast_vote(
                 &program,
                 &authority,
                 program_config_pda,
                 ballot_box_pda,
                 Ballot {
-                    meta_merkle_root,
-                    snapshot_hash,
+                    meta_merkle_root: root,
+                    snapshot_hash: hash,
                 },
             )?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::RemoveVote { ballot_id } => {
+        Commands::RemoveVote { id } => {
             info!("RemoveVote...");
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer);
+            let program = load_client_program(&payer, cli.rpc_url);
 
             let program_config_pda = ProgramConfig::pda().0;
-            let ballot_box_pda = BallotBox::pda(ballot_id).0;
+            let ballot_box_pda = BallotBox::pda(id).0;
             let tx = send_remove_vote(&program, &authority, program_config_pda, ballot_box_pda)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::SetTieBreaker {
-            ballot_id,
-            ballot_index,
-        } => {
+        Commands::SetTieBreaker { id, idx } => {
             info!("SetTieBreaker...");
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer);
+            let program = load_client_program(&payer, cli.rpc_url);
 
             let program_config_pda = ProgramConfig::pda().0;
-            let ballot_box_pda = BallotBox::pda(ballot_id).0;
+            let ballot_box_pda = BallotBox::pda(id).0;
             let tx = send_set_tie_breaker(
                 &program,
                 &authority,
                 ballot_box_pda,
                 program_config_pda,
-                ballot_index,
+                idx,
             )?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::FinalizeBallot { ballot_id } => {
+        Commands::FinalizeBallot { id } => {
             info!("FinalizeBallot...");
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let client: Client<&Keypair> =
-                Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
-            let program: Program<&Keypair> = client.program(gov_v1::id()).unwrap();
+            let program = load_client_program(&payer, cli.rpc_url);
 
-            let ballot_box_pda = BallotBox::pda(ballot_id).0;
-            let consensus_result_pda = ConsensusResult::pda(ballot_id).0;
+            let ballot_box_pda = BallotBox::pda(id).0;
+            let consensus_result_pda = ConsensusResult::pda(id).0;
             let tx = send_finalize_ballot(&program, ballot_box_pda, consensus_result_pda)?;
             info!("Transaction sent: {}", tx);
         }

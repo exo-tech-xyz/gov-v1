@@ -665,7 +665,7 @@ fn main() {
         operators: operator_keypairs,
         meta_merkle_snapshot,
     };
-    test_program_config(&program, &context);
+    test_program_config(&program, &context).unwrap();
     test_balloting(&program, &context).unwrap();
     test_merkle_proofs(&program, &context).unwrap();
     test_invalid_merkle_proofs(&program, &context).unwrap();
