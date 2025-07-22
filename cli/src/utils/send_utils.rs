@@ -52,24 +52,30 @@ pub fn send_update_program_config(
     program: &Program<&Keypair>,
     authority: &Keypair,
     program_config: Pubkey,
-    new_authority: Option<Pubkey>,
+    new_authority: Option<Keypair>,
     min_consensus_threshold_bps: Option<u16>,
     tie_breaker_admin: Option<Pubkey>,
     vote_duration: Option<i64>,
 ) -> Result<Signature, ClientError> {
-    program
-        .request()
-        .accounts(accounts::UpdateProgramConfig {
-            authority: authority.pubkey(),
-            program_config,
-        })
+    let mut accounts = accounts::UpdateProgramConfig {
+        authority: authority.pubkey(),
+        program_config,
+        new_authority: None,
+    };
+    let mut builder = program.request().signer(authority);
+
+    if let Some(new_authority) = new_authority {
+        accounts.new_authority = Some(new_authority.pubkey());
+        builder = builder.signer(new_authority);
+    }
+
+    builder
+        .accounts(accounts)
         .args(instruction::UpdateProgramConfig {
-            new_authority,
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
         })
-        .signer(authority)
         .send()
 }
 

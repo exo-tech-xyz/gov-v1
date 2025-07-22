@@ -67,14 +67,41 @@ fn test_program_config(
         operators_to_add[..8].to_vec()
     );
 
+    let new_authority = Keypair::new();
+
     send_update_program_config(
         program,
         &context.payer,
         context.program_config_pda,
-        None,
+        Some(new_authority.insecure_clone()),
         Some(MIN_CONSENSUS_BPS),
         Some(program.payer()),
         Some(VOTE_DURATION),
+    )?;
+
+    // Verify values in ProgramConfig
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
+    assert_eq!(program_config.authority, new_authority.pubkey());
+    assert_eq!(program_config.tie_breaker_admin, program.payer());
+    assert_eq!(
+        program_config.whitelisted_operators,
+        operators_to_add[..8].to_vec()
+    );
+    assert_eq!(
+        program_config.min_consensus_threshold_bps,
+        MIN_CONSENSUS_BPS
+    );
+    assert_eq!(program_config.next_ballot_id, 0);
+    assert_eq!(program_config.vote_duration, VOTE_DURATION);
+
+    send_update_program_config(
+        program,
+        &new_authority,
+        context.program_config_pda,
+        Some(context.payer.insecure_clone()),
+        None,
+        None,
+        None,
     )?;
 
     // Verify values in ProgramConfig

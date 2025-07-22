@@ -93,15 +93,15 @@ pub enum Commands {
     },
     InitProgramConfig {},
     UpdateOperatorWhitelist {
-        #[arg(long, value_delimiter = ',', value_parser = parse_pubkey)]
+        #[arg(short, long, value_delimiter = ',', value_parser = parse_pubkey)]
         add: Option<Vec<Pubkey>>,
 
-        #[arg(long, value_delimiter = ',', value_parser = parse_pubkey)]
+        #[arg(short, long, value_delimiter = ',', value_parser = parse_pubkey)]
         remove: Option<Vec<Pubkey>>,
     },
     UpdateProgramConfig {
-        #[arg(long, value_parser = parse_pubkey)]
-        new_authority: Option<Pubkey>,
+        #[arg(long, env)]
+        new_authority_path: Option<String>,
 
         #[arg(long)]
         min_consensus_threshold_bps: Option<u16>,
@@ -224,7 +224,7 @@ fn main() -> Result<()> {
             info!("Transaction sent: {}", tx);
         }
         Commands::UpdateProgramConfig {
-            new_authority,
+            new_authority_path,
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
@@ -234,6 +234,10 @@ fn main() -> Result<()> {
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
+            let mut new_authority = None;
+            if let Some(path) = new_authority_path {
+                new_authority = Some(read_keypair_file(&path).unwrap());
+            }
 
             let tx = send_update_program_config(
                 &program,

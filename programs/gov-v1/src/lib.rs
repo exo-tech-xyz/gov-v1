@@ -31,14 +31,12 @@ pub mod gov_v1 {
 
     pub fn update_program_config(
         ctx: Context<UpdateProgramConfig>,
-        new_authority: Option<Pubkey>,
         min_consensus_threshold_bps: Option<u16>,
         tie_breaker_admin: Option<Pubkey>,
         vote_duration: Option<i64>,
     ) -> Result<()> {
         update_program_config::handler(
             ctx,
-            new_authority,
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
