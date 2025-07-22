@@ -1,8 +1,3 @@
-pub mod cli_types;
-pub mod send_utils;
-
-use crate::cli_types::*;
-use crate::send_utils::*;
 use anchor_client::{
     solana_sdk::{
         commitment_config::CommitmentConfig,
@@ -13,7 +8,7 @@ use anchor_client::{
 };
 use anyhow::Result;
 use clap::Parser;
-use cli::generate_meta_merkle_snapshot;
+use cli::{generate_meta_merkle_snapshot, utils::*};
 use gov_v1::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig};
 use log::info;
 use std::path::PathBuf;
@@ -46,6 +41,9 @@ struct Cli {
 
     #[arg(short, long, env, default_value = "tmp/backup-snapshots")]
     pub backup_snapshots_dir: PathBuf,
+
+    #[arg(long, env, default_value = "mainnet")]
+    pub cluster: String,
 
     // #[arg(short, long, env, default_value = "tmp/snapshot-output")]
     // pub snapshot_output_dir: PathBuf,

@@ -1,4 +1,5 @@
 pub mod merkle;
+pub mod utils;
 
 use im::HashMap;
 pub use merkle::*;

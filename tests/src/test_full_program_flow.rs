@@ -9,14 +9,12 @@ use anchor_client::{
     },
     Client, ClientError, Cluster, Program,
 };
-use cli::MetaMerkleSnapshot;
+use cli::{utils::*, MetaMerkleSnapshot};
 use gov_v1::{
     Ballot, BallotBox, BallotTally, ConsensusResult, MetaMerkleProof, OperatorVote, ProgramConfig,
 };
 
-use crate::utils::{
-    assert::assert_client_err, data_types::ProgramTestContext, fetch_utils::*, send_utils::*,
-};
+use crate::utils::{assert::assert_client_err, data_types::ProgramTestContext, fetch_utils::*};
 
 const VOTE_DURATION: i64 = 10;
 const MIN_CONSENSUS_BPS: u16 = 6666;
@@ -28,7 +26,7 @@ fn test_program_config(
     send_init_program_config(program, &context.payer, context.program_config_pda)?;
 
     // Verify values in ProgramConfig
-    let program_config = fetch_program_config(context, program);
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.authority, program.payer());
     assert_eq!(program_config.tie_breaker_admin, Pubkey::default());
     assert_eq!(program_config.whitelisted_operators.len(), 0);
@@ -48,7 +46,7 @@ fn test_program_config(
     )?;
 
     // Verify values in ProgramConfig
-    let program_config = fetch_program_config(context, program);
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.whitelisted_operators, operators_to_add);
 
     // Remove operators
@@ -63,7 +61,7 @@ fn test_program_config(
     )?;
 
     // Verify values in ProgramConfig
-    let program_config = fetch_program_config(context, program);
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(
         program_config.whitelisted_operators,
         operators_to_add[..8].to_vec()
@@ -80,7 +78,7 @@ fn test_program_config(
     )?;
 
     // Verify values in ProgramConfig
-    let program_config = fetch_program_config(context, program);
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.authority, program.payer());
     assert_eq!(program_config.tie_breaker_admin, program.payer());
     assert_eq!(
@@ -115,7 +113,7 @@ fn test_balloting(
     let epoch_info = program.rpc().get_epoch_info()?;
     let vote_expiry_timestamp = tx_block_time + VOTE_DURATION;
 
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.ballot_id, 0);
     assert_eq!(ballot_box.bump, bump);
     assert_eq!(ballot_box.epoch, epoch_info.epoch);
@@ -128,7 +126,7 @@ fn test_balloting(
     assert_eq!(ballot_box.vote_expiry_timestamp, vote_expiry_timestamp);
 
     // Check that next_ballot_id is incremented
-    let program_config = fetch_program_config(context, program);
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.next_ballot_id, 1);
 
     // Casting an invalid ballot fails.
@@ -173,7 +171,7 @@ fn test_balloting(
     .to_vec();
 
     // Checks that a new ballot tally is created.
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.ballot_id, 0);
     assert_eq!(ballot_box.bump, bump);
     assert_eq!(ballot_box.epoch, epoch_info.epoch);
@@ -222,7 +220,7 @@ fn test_balloting(
     });
 
     // Checks that a new ballot tally is created.
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.slot_consensus_reached, 0);
     assert_eq!(ballot_box.winning_ballot, Ballot::default());
     assert_eq!(ballot_box.operator_votes, expected_operator_votes);
@@ -257,7 +255,7 @@ fn test_balloting(
     });
 
     // Checks votes for operator 3, 4, 5, 6, 7 - no consensus reached yet.
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.slot_consensus_reached, 0);
     assert_eq!(ballot_box.winning_ballot, Ballot::default());
     assert_eq!(ballot_box.operator_votes, expected_operator_votes);
@@ -273,7 +271,7 @@ fn test_balloting(
     expected_operator_votes.remove(1);
     expected_ballot_tallies[1].tally = 0;
 
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.operator_votes, expected_operator_votes);
     assert_eq!(ballot_box.ballot_tallies, expected_ballot_tallies);
 
@@ -308,7 +306,7 @@ fn test_balloting(
     });
     expected_ballot_tallies[2].tally += 1;
 
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.slot_consensus_reached, consensus_slot);
     assert_eq!(ballot_box.winning_ballot, ballot3);
     assert_eq!(ballot_box.operator_votes, expected_operator_votes);
@@ -333,7 +331,7 @@ fn test_balloting(
     expected_ballot_tallies[2].tally += 1;
 
     // Voting after consensus doesn't change the consensus result.
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.slot_consensus_reached, consensus_slot);
     assert_eq!(ballot_box.winning_ballot, ballot3);
     assert_eq!(ballot_box.operator_votes, expected_operator_votes);
@@ -360,7 +358,7 @@ fn test_balloting(
 
     // Finalize ballot should succeed.
     send_finalize_ballot(program, ballot_box_pda, consensus_result_pda)?;
-    let consensus_result = fetch_consensus_result(program, &consensus_result_pda);
+    let consensus_result: ConsensusResult = program.account(consensus_result_pda)?;
     assert_eq!(consensus_result.ballot_id, ballot_box.ballot_id);
     assert_eq!(consensus_result.ballot, ballot_box.winning_ballot);
 
@@ -385,7 +383,7 @@ fn test_tie_breaker(
     let epoch_info = program.rpc().get_epoch_info()?;
     let vote_expiry_timestamp = tx_block_time + VOTE_DURATION;
 
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.ballot_id, 1);
     assert_eq!(ballot_box.bump, bump);
     assert_eq!(ballot_box.epoch, epoch_info.epoch);
@@ -457,7 +455,7 @@ fn test_tie_breaker(
         expected_ballot_tallies[1].tally += 1;
     }
 
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.slot_consensus_reached, 0);
     assert_eq!(ballot_box.winning_ballot, Ballot::default());
     assert_eq!(ballot_box.operator_votes, expected_operator_votes);
@@ -500,7 +498,7 @@ fn test_tie_breaker(
     assert_client_err(tx, "Voting has expired");
 
     // Verify that consensus is reached.
-    let ballot_box = fetch_ballot_box(program, &ballot_box_pda);
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.slot_consensus_reached, consensus_slot);
     assert_eq!(ballot_box.winning_ballot, ballot1);
     assert_eq!(ballot_box.operator_votes, expected_operator_votes);
@@ -509,7 +507,7 @@ fn test_tie_breaker(
     // Finalize ballot after consensus.
     let (consensus_result_pda, _bump) = ConsensusResult::pda(1);
     send_finalize_ballot(program, ballot_box_pda, consensus_result_pda)?;
-    let consensus_result = fetch_consensus_result(program, &consensus_result_pda);
+    let consensus_result: ConsensusResult = program.account(consensus_result_pda)?;
     assert_eq!(consensus_result.ballot_id, ballot_box.ballot_id);
     assert_eq!(consensus_result.ballot, ballot_box.winning_ballot);
 
@@ -548,7 +546,7 @@ fn test_merkle_proofs(
         1,
     )?;
 
-    let merkle_proof = fetch_merkle_proof(program, &merkle_proof_pda);
+    let merkle_proof: MetaMerkleProof = program.account(merkle_proof_pda)?;
     assert_eq!(merkle_proof.payer, program.payer());
     assert_eq!(merkle_proof.consensus_result, consensus_result_pda);
     assert_eq!(merkle_proof.meta_merkle_leaf, bundle.meta_merkle_leaf);
