@@ -21,10 +21,10 @@ use tip_router_operator_cli::{
 #[derive(Clone, Parser)]
 #[command(author, version, about)]
 struct Cli {
-    #[arg(short, long, env)]
+    #[arg(short, long, env, default_value = "/")]
     pub payer_path: String,
 
-    #[arg(short, long, env)]
+    #[arg(short, long, env, default_value = "/")]
     pub authority_path: String,
 
     #[arg(short, long, env, default_value = "11111111111111111111111111111111")]
@@ -45,14 +45,9 @@ struct Cli {
     #[arg(long, env, default_value = "mainnet")]
     pub cluster: String,
 
-    // #[arg(short, long, env, default_value = "tmp/snapshot-output")]
-    // pub snapshot_output_dir: PathBuf,
+    #[arg(long, env, default_value_t = 1)]
+    pub micro_lamports: u64,
 
-    // #[arg(long, env, default_value_t = 1)]
-    // pub micro_lamports: u64,
-
-    // #[arg(long, env, help = "Path to save data (formerly meta-merkle-tree-dir)")]
-    // pub save_path: Option<PathBuf>,
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -85,12 +80,15 @@ pub enum Commands {
         #[arg(long, env)]
         slot: u64,
 
-        #[arg(long, env)]
-        epoch: u64,
-
-        #[arg(long, env, default_value = "true")]
-        save: bool,
+        #[arg(
+            long,
+            env,
+            default_value = "./",
+            help = "Path to save meta merkle tree"
+        )]
+        save_path: PathBuf,
     },
+
     InitProgramConfig {},
     UpdateOperatorWhitelist {
         #[arg(short, long, value_delimiter = ',', value_parser = parse_pubkey)]
@@ -351,11 +349,9 @@ fn main() -> Result<()> {
                 &cli.cluster,
             );
         }
-        // TODO: Use `epoch` and `save` arg.
         Commands::GenerateMetaMerkle {
-            epoch: _,
             slot,
-            save: _,
+            ref save_path,
         } => {
             let SnapshotPaths {
                 ledger_path,
@@ -378,10 +374,8 @@ fn main() -> Result<()> {
 
             let meta_merkle_snapshot = generate_meta_merkle_snapshot(&Arc::new(bank))?;
 
-            let file_path = format!("./tmp/meta_merkle-{}.zip", slot);
-            meta_merkle_snapshot.save_compressed(file_path.as_str())?;
-
-            // TODO: publish file (e.g. upload to S3/IPFS/etc.)
+            let file_path = PathBuf::from(save_path).join(format!("meta_merkle-{}.zip", slot));
+            meta_merkle_snapshot.save_compressed(file_path)?;
         }
     }
     Ok(())
