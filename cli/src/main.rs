@@ -45,8 +45,8 @@ struct Cli {
     #[arg(long, env, default_value = "mainnet")]
     pub cluster: String,
 
-    #[arg(long, env, default_value_t = 1)]
-    pub micro_lamports: u64,
+    #[arg(long, env)]
+    pub micro_lamports: Option<u64>,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -202,7 +202,13 @@ fn main() -> Result<()> {
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
 
-            let tx = send_init_program_config(&program, &authority, ProgramConfig::pda().0)?;
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
+            let tx = send_init_program_config(tx_sender)?;
             info!("Transaction sent: {}", tx);
         }
         Commands::UpdateOperatorWhitelist { add, remove } => {
@@ -212,13 +218,13 @@ fn main() -> Result<()> {
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
 
-            let tx = send_update_operator_whitelist(
-                &program,
-                &authority,
-                ProgramConfig::pda().0,
-                add,
-                remove,
-            )?;
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
+            let tx = send_update_operator_whitelist(tx_sender, add, remove)?;
             info!("Transaction sent: {}", tx);
         }
         Commands::UpdateProgramConfig {
@@ -232,15 +238,17 @@ fn main() -> Result<()> {
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
-            let mut new_authority = None;
-            if let Some(path) = new_authority_path {
-                new_authority = Some(read_keypair_file(&path).unwrap());
-            }
+            let new_auth_kp = new_authority_path.map(|path| read_keypair_file(&path).unwrap());
+            let new_authority = new_auth_kp.as_ref();
 
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
             let tx = send_update_program_config(
-                &program,
-                &authority,
-                ProgramConfig::pda().0,
+                tx_sender,
                 new_authority,
                 min_consensus_threshold_bps,
                 tie_breaker_admin,
@@ -258,8 +266,14 @@ fn main() -> Result<()> {
             let program_config_pda = ProgramConfig::pda().0;
             let program_config: ProgramConfig = program.account(program_config_pda)?;
             let ballot_box_pda = BallotBox::pda(program_config.next_ballot_id).0;
-            let tx =
-                send_init_ballot_box(&program, &authority, program_config_pda, ballot_box_pda)?;
+
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
+            let tx = send_init_ballot_box(tx_sender, ballot_box_pda)?;
             info!("Transaction sent: {}", tx);
         }
         Commands::CastVote { id, root, hash } => {
@@ -269,12 +283,15 @@ fn main() -> Result<()> {
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
 
-            let program_config_pda = ProgramConfig::pda().0;
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
             let ballot_box_pda = BallotBox::pda(id).0;
             let tx = send_cast_vote(
-                &program,
-                &authority,
-                program_config_pda,
+                tx_sender,
                 ballot_box_pda,
                 Ballot {
                     meta_merkle_root: root,
@@ -290,9 +307,14 @@ fn main() -> Result<()> {
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
 
-            let program_config_pda = ProgramConfig::pda().0;
             let ballot_box_pda = BallotBox::pda(id).0;
-            let tx = send_remove_vote(&program, &authority, program_config_pda, ballot_box_pda)?;
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
+            let tx = send_remove_vote(tx_sender, ballot_box_pda)?;
             info!("Transaction sent: {}", tx);
         }
         Commands::SetTieBreaker { id, idx } => {
@@ -301,16 +323,15 @@ fn main() -> Result<()> {
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
-
-            let program_config_pda = ProgramConfig::pda().0;
             let ballot_box_pda = BallotBox::pda(id).0;
-            let tx = send_set_tie_breaker(
-                &program,
-                &authority,
-                ballot_box_pda,
-                program_config_pda,
-                idx,
-            )?;
+
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
+            let tx = send_set_tie_breaker(tx_sender, ballot_box_pda, idx)?;
             info!("Transaction sent: {}", tx);
         }
         Commands::FinalizeBallot { id } => {
@@ -321,7 +342,13 @@ fn main() -> Result<()> {
 
             let ballot_box_pda = BallotBox::pda(id).0;
             let consensus_result_pda = ConsensusResult::pda(id).0;
-            let tx = send_finalize_ballot(&program, ballot_box_pda, consensus_result_pda)?;
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &payer,
+            };
+            let tx = send_finalize_ballot(tx_sender, ballot_box_pda, consensus_result_pda)?;
             info!("Transaction sent: {}", tx);
         }
         // === Snapshot Processing ===
