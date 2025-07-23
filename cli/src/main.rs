@@ -22,10 +22,10 @@ use tip_router_operator_cli::{
 #[command(author, version, about)]
 struct Cli {
     #[arg(short, long, env, default_value = "/")]
-    pub payer_path: String,
+    pub payer_path: PathBuf,
 
     #[arg(short, long, env, default_value = "/")]
-    pub authority_path: String,
+    pub authority_path: PathBuf,
 
     #[arg(short, long, env, default_value = "11111111111111111111111111111111")]
     pub operator_address: String,
