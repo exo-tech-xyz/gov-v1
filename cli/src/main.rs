@@ -1,5 +1,6 @@
 use anchor_client::{
     solana_sdk::{
+        bs58,
         commitment_config::CommitmentConfig,
         pubkey::Pubkey,
         signature::{read_keypair_file, Keypair},
@@ -8,7 +9,7 @@ use anchor_client::{
 };
 use anyhow::Result;
 use clap::Parser;
-use cli::{generate_meta_merkle_snapshot, utils::*};
+use cli::{generate_meta_merkle_snapshot, utils::*, MetaMerkleSnapshot};
 use gov_v1::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig};
 use log::info;
 use std::path::PathBuf;
@@ -88,7 +89,13 @@ pub enum Commands {
         )]
         save_path: PathBuf,
     },
+    LogMetaMerkleHash {
+        #[arg(long, env, help = "Path to read meta merkle tree")]
+        read_path: PathBuf,
 
+        #[arg(long, default_value = "true")]
+        is_compressed: bool,
+    },
     InitProgramConfig {},
     UpdateOperatorWhitelist {
         #[arg(short, long, value_delimiter = ',', value_parser = parse_pubkey)]
@@ -118,10 +125,22 @@ pub enum Commands {
     CastVote {
         #[arg(long, help = "Id of ballot box")]
         id: u64,
+
         #[arg(long, value_parser = parse_base_58_32, help = "Meta merkle tree root, base-58 encoded.")]
         root: [u8; 32],
+
         #[arg(long, value_parser = parse_base_58_32, help = "SHA256 hash of the meta merkle snapshot, base-58 encoded.")]
         hash: [u8; 32],
+    },
+    CastVoteFromSnapshot {
+        #[arg(long, help = "Id of ballot box")]
+        id: u64,
+
+        #[arg(long, env, help = "Path to read meta merkle tree")]
+        read_path: PathBuf,
+
+        #[arg(long, default_value = "true")]
+        is_compressed: bool,
     },
     RemoveVote {
         #[arg(long, help = "Id of ballot box")]
@@ -130,14 +149,17 @@ pub enum Commands {
     SetTieBreaker {
         #[arg(long, help = "Id of ballot box")]
         id: u64,
+
         #[arg(long, help = "Index in ballot tallies to set as winning ballot")]
         idx: u8,
     },
     Log {
         #[arg(long, help = "Id of ballot box to fetch")]
         id: Option<u64>,
+
         #[arg(long, value_parser = parse_pubkey)]
         vote_account: Option<Pubkey>,
+
         #[arg(long, value_parser = parse_log_type, help = "Account type: program-config | ballot-box | consensus-result | proof")]
         ty: LogType,
     },
@@ -154,6 +176,35 @@ fn main() -> Result<()> {
             CommitmentConfig::confirmed(),
         );
         client.program(gov_v1::id()).unwrap()
+    }
+
+    fn cast_vote_shared(cli: Cli, id: u64, root: [u8; 32], hash: [u8; 32]) -> Result<()> {
+        let payer = read_keypair_file(&cli.payer_path).unwrap();
+        let authority = read_keypair_file(&cli.authority_path).unwrap();
+        let program = load_client_program(&payer, cli.rpc_url);
+
+        let tx_sender = &TxSender {
+            program: &program,
+            micro_lamports: cli.micro_lamports,
+            payer: &payer,
+            authority: &authority,
+        };
+        let ballot_box_pda = BallotBox::pda(id).0;
+        let tx = send_cast_vote(
+            tx_sender,
+            ballot_box_pda,
+            Ballot {
+                meta_merkle_root: root,
+                snapshot_hash: hash,
+            },
+        )?;
+        info!("Transaction sent: {}", tx);
+
+        info!("== Voted For Ballot Box {:?} ==", id);
+        info!("Merkle Root: {}", bs58::encode(root).into_string());
+        info!("Snapshot Hash: {}", bs58::encode(hash).into_string());
+
+        Ok(())
     }
 
     match cli.command {
@@ -276,29 +327,18 @@ fn main() -> Result<()> {
             let tx = send_init_ballot_box(tx_sender, ballot_box_pda)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::CastVote { id, root, hash } => {
-            info!("CastVote...");
+        Commands::CastVote { id, root, hash } => cast_vote_shared(cli, id, root, hash)?,
+        Commands::CastVoteFromSnapshot {
+            id,
+            ref read_path,
+            is_compressed,
+        } => {
+            let snapshot = MetaMerkleSnapshot::read(read_path.clone(), is_compressed)?;
+            info!("Using snapshot for slot {}", snapshot.slot);
 
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer, cli.rpc_url);
-
-            let tx_sender = &TxSender {
-                program: &program,
-                micro_lamports: cli.micro_lamports,
-                payer: &payer,
-                authority: &authority,
-            };
-            let ballot_box_pda = BallotBox::pda(id).0;
-            let tx = send_cast_vote(
-                tx_sender,
-                ballot_box_pda,
-                Ballot {
-                    meta_merkle_root: root,
-                    snapshot_hash: hash,
-                },
-            )?;
-            info!("Transaction sent: {}", tx);
+            let snapshot_hash =
+                MetaMerkleSnapshot::snapshot_hash(read_path.clone(), is_compressed)?;
+            cast_vote_shared(cli, id, snapshot.root, snapshot_hash.to_bytes())?;
         }
         Commands::RemoveVote { id } => {
             info!("RemoveVote...");
@@ -403,6 +443,20 @@ fn main() -> Result<()> {
 
             let file_path = PathBuf::from(save_path).join(format!("meta_merkle-{}.zip", slot));
             meta_merkle_snapshot.save_compressed(file_path)?;
+        }
+        Commands::LogMetaMerkleHash {
+            read_path,
+            is_compressed,
+        } => {
+            let snapshot = MetaMerkleSnapshot::read(read_path.clone(), is_compressed)?;
+            let snapshot_hash = MetaMerkleSnapshot::snapshot_hash(read_path, is_compressed)?;
+
+            let encoded_root = bs58::encode(snapshot.root).into_string();
+            let encoded_hash = bs58::encode(snapshot_hash.to_bytes()).into_string();
+
+            println!("Slot: {}", snapshot.slot);
+            println!("Merkle Root: {}", encoded_root);
+            println!("Snapshot Hash: {}", encoded_hash);
         }
     }
     Ok(())

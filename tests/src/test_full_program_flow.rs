@@ -651,7 +651,7 @@ fn main() {
         env!("CARGO_MANIFEST_DIR")
     );
     println!("path {}", path);
-    let meta_merkle_snapshot = MetaMerkleSnapshot::read(&path).unwrap();
+    let meta_merkle_snapshot = MetaMerkleSnapshot::read(path.into(), false).unwrap();
 
     let context = ProgramTestContext {
         payer: payer.insecure_clone(),
