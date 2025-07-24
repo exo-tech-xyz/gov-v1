@@ -1,14 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use flate2::{write::GzEncoder, Compression};
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use gov_v1::{MetaMerkleLeaf, StakeMerkleLeaf};
 use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
-use solana_program::{
-    hash::{hashv, Hash},
-    pubkey::Pubkey,
-};
-use std::fs::{self, File};
-use std::io::{self, BufReader, BufWriter, Read, Write};
-use std::path::Path;
+use solana_sdk::hash::{hash, Hash};
+use std::fs::File;
+use std::io::{self, Read, Write};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct MetaMerkleSnapshot {
@@ -21,12 +18,7 @@ pub struct MetaMerkleSnapshot {
 }
 
 impl MetaMerkleSnapshot {
-    pub fn save(&self, path: &str) -> io::Result<()> {
-        let data = self.try_to_vec()?;
-        fs::write(path, data)
-    }
-
-    pub fn save_compressed(&self, path: &str) -> io::Result<()> {
+    pub fn save_compressed(&self, path: PathBuf) -> io::Result<()> {
         let data = self.try_to_vec()?;
         let file = File::create(path)?;
         let mut enc = GzEncoder::new(file, Compression::default());
@@ -36,11 +28,32 @@ impl MetaMerkleSnapshot {
         Ok(())
     }
 
-    pub fn read(path: &str) -> io::Result<Self> {
+    pub fn read(path: PathBuf, is_compressed: bool) -> io::Result<Self> {
         let mut file = File::open(path)?;
         let mut buf = Vec::new();
-        file.read_to_end(&mut buf)?;
+
+        if is_compressed {
+            let mut decoder = GzDecoder::new(file);
+            decoder.read_to_end(&mut buf)?;
+        } else {
+            file.read_to_end(&mut buf)?;
+        }
+
         Self::try_from_slice(&buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+
+    pub fn snapshot_hash(path: PathBuf, is_compressed: bool) -> io::Result<Hash> {
+        let mut file = File::open(path)?;
+        let mut buf = Vec::new();
+
+        if is_compressed {
+            let mut decoder = GzDecoder::new(file);
+            decoder.read_to_end(&mut buf)?;
+        } else {
+            file.read_to_end(&mut buf)?;
+        }
+
+        Ok(hash(&buf))
     }
 }
 

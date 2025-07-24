@@ -1,5 +1,4 @@
 use anchor_client::solana_sdk::{pubkey::Pubkey, signature::Keypair};
-use borsh::{BorshDeserialize, BorshSerialize};
 use cli::MetaMerkleSnapshot;
 
 pub struct ProgramTestContext {
