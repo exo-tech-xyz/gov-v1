@@ -12,9 +12,15 @@ This repo contains:
 ```
 .
 ├── cli/                  # CLI tool for snapshot ops & voting
-└── programs/
+├── programs/
     └── gov-v1/           # On-chain governance snapshot program
+└── tests/                # Anchor program integration tests
 ```
+---
+
+## 🧪 Testing
+
+Anchor tests can be executed directly from the root directory with `anchor test` which spins up a local validator. Note that setup of env variables is required.
 
 ---
 
