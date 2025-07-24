@@ -214,8 +214,8 @@ fn main() -> Result<()> {
             vote_account,
             ty,
         } => {
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let program = load_client_program(&payer, cli.rpc_url);
+            let temp = Keypair::new();
+            let program = load_client_program(&temp, cli.rpc_url);
 
             match ty {
                 LogType::ProgramConfig => {
