@@ -19,8 +19,6 @@ This program enables whitelisted operators to vote on stake distribution snapsho
 | `MetaMerkleProof` | Stores the proof data required to verify a single validator’s stake in a snapshot.      |
 | `ProgramConfig`   | Stores program-wide configuration, including admin and operator whitelist.              |
 
----for a cursor pro subscription, how many queries can i send per model
-
 ### Instruction Set
 
 | Instruction Name            | Signer                                | Description                                                                                               |
