@@ -43,6 +43,22 @@ For individual stake accounts not managed by any stake pool program, the system 
 
 ---
 
+## Dependencies
+
+1. Clone `jito-tip-router` to parent directory and switch to `6d0d8244314ff7c04625b531f033b770a8c7aafc` commit.
+2. In the cloned repo, modify references of `branch=v2.1-upgrade` (which no longer exists) to `rev=358fbc3c20d947c977a136808f9fbf7f070e478b` in `Cargo.lock` and `Cargo.toml`.
+3. Ensure system is using Rust Version `1.86.0`, otherwise install with:
+
+```bash
+rustup toolchain install 1.86.0 // install
+rustup default 1.86.0 // set as default
+rustc --version // verify version
+```
+
+4. Build repo with `cargo build`
+
+---
+
 ## Testing
 
 Anchor tests can be executed directly from the root directory with `anchor test` which spins up a local validator. Note that setup of env variables is required.
@@ -159,6 +175,8 @@ RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --aut
 RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --authority-path ~/.config/solana/id.json set-tie-breaker --id 1 --idx 0
 ```
 
+---
+
 ## Additional Testing Commands
 
 ### To get genesis config:
@@ -225,7 +243,7 @@ solana gossip -u testnet
 2. Download snapshot and genesis config from the testnet
 
 ```
-wget --trust-server-names http://64.34.80.79:8899/snapshot.tar.bz2
+wget --trust-server-names http://65.21.197.239:8899/snapshot.tar.bz2
 
 wget http://160.202.131.117:8899/genesis.tar.bz2
 ```
