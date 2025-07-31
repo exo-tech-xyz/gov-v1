@@ -116,7 +116,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
         },
         false,
     )?;
-    println!(" Stake Pools Count: {}", stake_pool_voter_map.len());
+    println!("Stake Pools Count: {}", stake_pool_voter_map.len());
 
     let l_stakes = bank.stakes_cache.stakes();
     let delegations = l_stakes.stake_delegations();
@@ -151,8 +151,8 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
                 .map(|delegation| {
                     let mut voting_wallet = delegation.withdrawer_pubkey;
 
-                    // Checks if a stake account is delegated by a stake pool. If so, use the manager
-                    // authority as the voting_wallet, instead of the withdrawer authority.
+                    // Overwrite voting wallet if stake account has a withdraw authority that is 
+                    // mapped to a different wallet. Otherwise, use the withdrawer authority.
                     if let Some(manager) = stake_pool_voter_map.get(&delegation.withdrawer_pubkey) {
                         voting_wallet = *manager;
                         println!(
