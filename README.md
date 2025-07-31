@@ -21,6 +21,28 @@ This repo contains:
 
 ---
 
+## Stake Pool Handling
+
+The governance snapshot system handles stake accounts delegated by stake pools by changing the voting wallet from withdraw authorities (typically PDAs) to appropriate voting wallets to enable stake pool operators to participate in governance on behalf of their delegated stake.
+
+### SPL Stake Pool Program
+
+For stake accounts delegated through the **SPL Stake Pool program**, the system changes the voter from the withdraw authority (which is a PDA) to the **manager authority**.
+
+### Marinade Liquid Staking Program
+
+For stake accounts delegated through the **Marinade Liquid Staking Program**, the system changes the voter from the withdraw authority (which is a PDA) to the **operations wallet authority** (`opLSF7LdfyWNBby5o6FT8UFsr2A4UGKteECgtLSYrSm`).
+
+### Sanctum Pools
+
+For **Sanctum Pools**, since stake is either delegated to a single validator per LST or distributed with majority stake to a few validators, the LST operators are already able to vote through the validator itself. Therefore, the system keeps the voter for stake accounts as the withdraw authority (which will not be able to vote since it's a PDA). This approach recognizes that Sanctum's model already provides governance participation through validator-level voting.
+
+### Individual Stake Accounts
+
+For individual stake accounts not managed by any stake pool program, the system uses the withdraw authority directly as the voting wallet, allowing individual stakers to participate in governance.
+
+---
+
 ## Dependencies
 
 1. Clone `jito-tip-router` to parent directory and switch to `6d0d8244314ff7c04625b531f033b770a8c7aafc` commit.
@@ -152,6 +174,8 @@ RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --aut
 # Set tie-breaking result if consensus was not reached
 RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --authority-path ~/.config/solana/id.json set-tie-breaker --id 1 --idx 0
 ```
+
+---
 
 ## Additional Testing Commands
 

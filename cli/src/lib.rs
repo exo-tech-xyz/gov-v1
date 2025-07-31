@@ -1,10 +1,13 @@
+pub mod consts;
 pub mod merkle;
 pub mod utils;
 
+use crate::consts::{MARINADE_OPS_VOTING_WALLET, MARINADE_WITHDRAW_AUTHORITY};
 use im::HashMap;
 pub use merkle::*;
 
 use anyhow::Error;
+use borsh_stake::BorshDeserialize;
 use gov_v1::{MetaMerkleLeaf, StakeMerkleLeaf};
 use itertools::Itertools;
 use meta_merkle_tree::{
@@ -13,6 +16,10 @@ use meta_merkle_tree::{
 use solana_program::{pubkey::Pubkey, stake_history::StakeHistory, sysvar};
 use solana_runtime::{bank::Bank, stakes::StakeAccount};
 use solana_sdk::account::from_account;
+use solana_sdk::account::AccountSharedData;
+use solana_sdk::account::ReadableAccount;
+use spl_stake_pool::state::AccountType;
+use spl_stake_pool::state::StakePool;
 use std::sync::Arc;
 
 /// Given an [EpochStakes] object, return delegations grouped by voter_pubkey (validator delegated to).
@@ -59,12 +66,57 @@ fn group_delegations_by_voter_pubkey_active_stake(
     im::HashMap::from_iter(grouped)
 }
 
+/// Updates given map with new entry mapping withdraw authority to manager authority
+/// if account is a StakePool.
+fn update_stake_pool_voter_map(
+    stake_pool_voter_map: &mut HashMap<Pubkey, Pubkey>,
+    account: &AccountSharedData,
+) {
+    if account.owner() != &spl_stake_pool::id() {
+        return;
+    }
+
+    // Check discriminator: first byte should be 1 (AccountType::StakePool)
+    let data = account.data();
+    if data.is_empty() || data[0] != AccountType::StakePool as u8 {
+        return;
+    }
+
+    if let Ok(stake_pool) = StakePool::deserialize(&mut &account.data()[..]) {
+        if let Some(withdraw_authority) = stake_pool.sol_withdraw_authority {
+            // Sanity check: ensure the manager is not the default/zero pubkey
+            if stake_pool.manager == Pubkey::default() {
+                return;
+            }
+
+            stake_pool_voter_map.insert(withdraw_authority, stake_pool.manager);
+        }
+    }
+}
+
 /// Creates a MetaMerkleSnapshot from the given bank.
-/// TODO: Support using manager authority of StakePool as the `voting_wallet` if the stake account is delegated by the StakePool.
 pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnapshot, Error> {
     assert!(bank.is_frozen());
 
-    println!("Bank loaded: {:?}", bank.epoch());
+    println!("Bank loaded for epoch: {:?}", bank.epoch());
+
+    // Pre-process: Find all Stake Pools and map withdraw_authority to their voting wallet
+    // (StakePool manager by default)
+    let mut stake_pool_voter_map: HashMap<Pubkey, Pubkey> = HashMap::new();
+
+    // Maps Marinade LST stake pool withdraw authority to its ops wallet.
+    stake_pool_voter_map.insert(MARINADE_WITHDRAW_AUTHORITY, MARINADE_OPS_VOTING_WALLET);
+
+    // Scan all accounts owned by the stake pool program
+    bank.scan_all_accounts(
+        |item| {
+            if let Some((_pubkey, account, _slot)) = item {
+                update_stake_pool_voter_map(&mut stake_pool_voter_map, &account);
+            }
+        },
+        false,
+    )?;
+    println!("Stake Pools Count: {}", stake_pool_voter_map.len());
 
     let l_stakes = bank.stakes_cache.stakes();
     let delegations = l_stakes.stake_delegations();
@@ -75,7 +127,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
             bank.epoch()
         )
     });
-    println!("Vote Accounts Count: {:?}", epoch_vote_accounts.len());
+    println!("Vote Accounts Count: {}", epoch_vote_accounts.len());
     let voter_pubkey_to_delegations =
         group_delegations_by_voter_pubkey_active_stake(delegations, bank)
             .into_iter()
@@ -87,17 +139,33 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
         .filter_map(|(voter_pubkey, delegations)| {
             let (vote_account_stake, vote_account) =
                 epoch_vote_accounts.get(voter_pubkey).or_else(|| {
-                    eprintln!("Missing vote account for voter pubkey: {}", voter_pubkey);
+                    // Vote account may be missing from epoch_vote_accounts if the validator is not active,
+                    // despite having delegated stake.
+                    eprintln!("Missing {} from epoch_vote_accounts", voter_pubkey);
                     None
                 })?;
 
             // 1. Create leaf nodes for StakeMerkleTree.
             let mut stake_merkle_leaves = delegations
                 .iter()
-                .map(|delegation| StakeMerkleLeaf {
-                    voting_wallet: delegation.withdrawer_pubkey,
-                    stake_account: delegation.stake_account_pubkey,
-                    active_stake: delegation.lamports_delegated,
+                .map(|delegation| {
+                    let mut voting_wallet = delegation.withdrawer_pubkey;
+
+                    // Overwrite voting wallet if stake account has a withdraw authority that is 
+                    // mapped to a different wallet. Otherwise, use the withdrawer authority.
+                    if let Some(manager) = stake_pool_voter_map.get(&delegation.withdrawer_pubkey) {
+                        voting_wallet = *manager;
+                        println!(
+                            "Using stake pool manager {} for stake account {}",
+                            voting_wallet, delegation.stake_account_pubkey
+                        );
+                    }
+
+                    StakeMerkleLeaf {
+                        voting_wallet,
+                        stake_account: delegation.stake_account_pubkey,
+                        active_stake: delegation.lamports_delegated,
+                    }
                 })
                 .collect::<Vec<StakeMerkleLeaf>>();
 
