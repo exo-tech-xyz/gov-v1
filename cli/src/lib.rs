@@ -1,6 +1,8 @@
+pub mod consts;
 pub mod merkle;
 pub mod utils;
 
+use crate::consts::{MARINADE_OPS_VOTING_WALLET, MARINADE_WITHDRAW_AUTHORITY};
 use im::HashMap;
 pub use merkle::*;
 
@@ -14,7 +16,9 @@ use meta_merkle_tree::{
 use solana_program::{pubkey::Pubkey, stake_history::StakeHistory, sysvar};
 use solana_runtime::{bank::Bank, stakes::StakeAccount};
 use solana_sdk::account::from_account;
+use solana_sdk::account::AccountSharedData;
 use solana_sdk::account::ReadableAccount;
+use spl_stake_pool::state::AccountType;
 use spl_stake_pool::state::StakePool;
 use std::sync::Arc;
 
@@ -62,36 +66,57 @@ fn group_delegations_by_voter_pubkey_active_stake(
     im::HashMap::from_iter(grouped)
 }
 
+/// Updates given map with new entry mapping withdraw authority to manager authority
+/// if account is a StakePool.
+fn update_stake_pool_voter_map(
+    stake_pool_voter_map: &mut HashMap<Pubkey, Pubkey>,
+    account: &AccountSharedData,
+) {
+    if account.owner() != &spl_stake_pool::id() {
+        return;
+    }
+
+    // Check discriminator: first byte should be 1 (AccountType::StakePool)
+    let data = account.data();
+    if data.is_empty() || data[0] != AccountType::StakePool as u8 {
+        return;
+    }
+
+    if let Ok(stake_pool) = StakePool::deserialize(&mut &account.data()[..]) {
+        if let Some(withdraw_authority) = stake_pool.sol_withdraw_authority {
+            // Sanity check: ensure the manager is not the default/zero pubkey
+            if stake_pool.manager == Pubkey::default() {
+                return;
+            }
+
+            stake_pool_voter_map.insert(withdraw_authority, stake_pool.manager);
+        }
+    }
+}
+
 /// Creates a MetaMerkleSnapshot from the given bank.
 pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnapshot, Error> {
     assert!(bank.is_frozen());
 
     println!("Bank loaded for epoch: {:?}", bank.epoch());
 
-    // Pre-process: Find all Stake Pools and build withdraw_authority -> manager mapping
-    let mut withdraw_to_manager: HashMap<Pubkey, Pubkey> = HashMap::new();
+    // Pre-process: Find all Stake Pools and map withdraw_authority to their voting wallet
+    // (StakePool manager by default)
+    let mut stake_pool_voter_map: HashMap<Pubkey, Pubkey> = HashMap::new();
 
-    // TODO: Support other stake pool programs (i.e. Jito and Marinade).
+    // Maps Marinade LST stake pool withdraw authority to its ops wallet.
+    stake_pool_voter_map.insert(MARINADE_WITHDRAW_AUTHORITY, MARINADE_OPS_VOTING_WALLET);
+
     // Scan all accounts owned by the stake pool program
     bank.scan_all_accounts(
         |item| {
-            if let Some((pubkey, account, _slot)) = item {
-                if account.owner() == &spl_stake_pool::id() {
-                    if let Ok(stake_pool) = StakePool::deserialize(&mut &account.data()[..]) {
-                        if let Some(withdraw_authority) = stake_pool.sol_withdraw_authority {
-                            withdraw_to_manager.insert(withdraw_authority, stake_pool.manager);
-                            // println!(
-                            //     "Found stake pool: {} -> manager: {}, withdraw_authority: {}",
-                            //     pubkey, stake_pool.manager, withdraw_authority
-                            // );
-                        }
-                    }
-                }
+            if let Some((_pubkey, account, _slot)) = item {
+                update_stake_pool_voter_map(&mut stake_pool_voter_map, &account);
             }
         },
         false,
     )?;
-    println!(" Stake Pools Count: {}", withdraw_to_manager.len());
+    println!(" Stake Pools Count: {}", stake_pool_voter_map.len());
 
     let l_stakes = bank.stakes_cache.stakes();
     let delegations = l_stakes.stake_delegations();
@@ -126,9 +151,9 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
                 .map(|delegation| {
                     let mut voting_wallet = delegation.withdrawer_pubkey;
 
-                    // Checks if a stake account is delegated by a stake pool. If so, use the manager 
+                    // Checks if a stake account is delegated by a stake pool. If so, use the manager
                     // authority as the voting_wallet, instead of the withdrawer authority.
-                    if let Some(manager) = withdraw_to_manager.get(&delegation.withdrawer_pubkey) {
+                    if let Some(manager) = stake_pool_voter_map.get(&delegation.withdrawer_pubkey) {
                         voting_wallet = *manager;
                         println!(
                             "Using stake pool manager {} for stake account {}",
