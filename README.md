@@ -9,6 +9,22 @@ This repo contains:
 
 ---
 
+## Table of Contents
+
+- [Project Structure](#project-structure)
+- [Stake Pool Handling](#stake-pool-handling)
+- [Testing](#testing)
+- [CLI Usage](#cli-usage-via-cargo-run)
+  - [Program Setup](#program-setup-after-deployment)
+  - [Snapshot Handling](#snapshot-handling)
+  - [Log On-Chain State](#log-on-chain-state)
+  - [Voting Flow](#voting-flow)
+  - [Finalization & Tie-Breaking](#finalization--tie-breaking)
+- [Troubleshooting](#troubleshooting)
+- [Additional Testing Commands](#additional-testing-commands)
+
+---
+
 ## Project Structure
 
 ```
@@ -177,6 +193,30 @@ RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --aut
 
 ---
 
+## Troubleshooting
+
+### Snapshot Bank Verification Error
+
+If you encounter an error similar to:
+
+```
+Snapshot bank for slot 340850340 failed to verify
+```
+
+**Solution:** Comment out the line causing the `panic` invocation in the `jito-solana` dependency crate. Snapshot verification failure does not impede generation of a merkle tree snapshot from the source file.
+
+### Genesis Creation Time Mismatch
+
+If you encounter an error such as:
+
+```
+Bank snapshot genesis creation time does not match genesis.bin creation time
+```
+
+**Solution:** Comment out the `assert_eq` statement in the `jito-solana` dependency crate. Genesis mismatch could occur when the snapshot is retrieved from a different RPC, but does not impede merkle generation.
+
+---
+
 ## Additional Testing Commands
 
 ### To get genesis config:
@@ -243,7 +283,7 @@ solana gossip -u testnet
 2. Download snapshot and genesis config from the testnet
 
 ```
-wget --trust-server-names http://65.21.197.239:8899/snapshot.tar.bz2
+wget --trust-server-names http://38.147.105.98:8899/snapshot.tar.bz2
 
 wget http://160.202.131.117:8899/genesis.tar.bz2
 ```
