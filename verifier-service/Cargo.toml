@@ -1,0 +1,28 @@
+[package]
+name = "verifier-service"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "verifier-service"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.8.4"
+tokio = { version = "1.0", features = ["full"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.6", features = ["cors", "trace"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+thiserror = "2.0.12"
+flate2 = "1.0"
+log = { workspace = true }
+env_logger = { workspace = true }
+anchor-lang = { workspace = true }
+solana-program = { workspace = true }
+gov-v1 = { version = "0.1.0", path = "../programs/gov-v1" }
+borsh = { version = "1.5.7" }
