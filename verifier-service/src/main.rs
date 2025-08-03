@@ -1,3 +1,5 @@
+mod database;
+
 use std::net::SocketAddr;
 
 use axum::{
@@ -7,6 +9,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use database::{Database, constants::DATABASE_FILE};
 use serde_json::{json, Value};
 use tracing::info;
 
@@ -16,6 +19,10 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     info!("Starting Governance Merkle Verifier Service");
+
+    // Initialize database
+    let _db = Database::new(DATABASE_FILE)?;
+    info!("Database initialized successfully");
 
     // Build application with routes
     let app = Router::new()
@@ -68,7 +75,10 @@ async fn get_voter_summary(Path(voting_wallet): Path<String>) -> Result<Json<Val
 }
 
 async fn get_vote_proof(Path(vote_account): Path<String>) -> Result<Json<Value>, StatusCode> {
-    info!("GET /proof/vote_account/{} - Vote account proof requested", vote_account);
+    info!(
+        "GET /proof/vote_account/{} - Vote account proof requested",
+        vote_account
+    );
     Ok(Json(json!({
         "snapshot_slot": 0,
         "meta_merkle_leaf": {},
@@ -77,7 +87,10 @@ async fn get_vote_proof(Path(vote_account): Path<String>) -> Result<Json<Value>,
 }
 
 async fn get_stake_proof(Path(stake_account): Path<String>) -> Result<Json<Value>, StatusCode> {
-    info!("GET /proof/stake_account/{} - Stake account proof requested", stake_account);
+    info!(
+        "GET /proof/stake_account/{} - Stake account proof requested",
+        stake_account
+    );
     Ok(Json(json!({
         "snapshot_slot": 0,
         "stake_merkle_leaf": {},

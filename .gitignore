@@ -6,3 +6,4 @@ tmp/
 .anchor
 **/*.rs.bk
 node_modules
+*.db
