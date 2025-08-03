@@ -14,7 +14,7 @@ use super::sql::{
 pub fn run_migrations(conn: &Connection) -> Result<()> {
     info!("Running database migrations");
 
-    // Create migrations table first
+    // Create migrations table if it doesn't exist
     create_migrations_table(conn)?;
 
     // Get current version
