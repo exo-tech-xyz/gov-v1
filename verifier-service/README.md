@@ -8,6 +8,12 @@ A self-contained Rust web service for serving Merkle proofs and leaf nodes for S
 # Run the service
 RUST_LOG=info cargo run --bin verifier-service
 
+# Run with custom database path
+DB_PATH="./data/governance.db" RUST_LOG=info cargo run --bin verifier-service
+
+# Run with in-memory database (for testing)
+DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
+
 # The service will start on http://localhost:3000
 ```
 
