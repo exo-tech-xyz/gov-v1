@@ -1,4 +1,14 @@
+//! Database models
+
 use serde::{Deserialize, Serialize};
+
+/// Migration record for tracking schema versions
+#[derive(Debug, Clone)]
+pub struct MigrationRecord {
+    pub version: i32,
+    pub applied_at: String,
+    pub description: String,
+}
 
 /// Vote account record in the database
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,12 +42,4 @@ pub struct SnapshotMetaRecord {
     pub merkle_root: String,
     pub snapshot_hash: String,
     pub created_at: String, // ISO8601 UTC timestamp
-}
-
-/// Migration record for tracking schema versions
-#[derive(Debug, Clone)]
-pub struct MigrationRecord {
-    pub version: i32,
-    pub applied_at: String,
-    pub description: String,
 }
