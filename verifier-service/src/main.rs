@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use database::{Database, constants::DATABASE_FILE};
+use database::{Database, constants::DEFAULT_DB_PATH};
 use serde_json::{json, Value};
 use tracing::info;
 
@@ -20,9 +20,10 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Governance Merkle Verifier Service");
 
-    // Initialize database
-    let _db = Database::new(DATABASE_FILE)?;
-    info!("Database initialized successfully");
+    // Open database
+    let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
+    let _db = Database::new(&db_path)?;
+    info!("Database opened successfully");
 
     // Build application with routes
     let app = Router::new()
@@ -35,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Run the server
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    info!("Verifier service listening on {}", addr);
+    info!("Server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;

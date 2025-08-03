@@ -18,7 +18,7 @@ pub struct Database {
 impl Database {
     /// Create a new database connection and run migrations
     pub fn new(db_path: &str) -> Result<Self> {
-        info!("Initializing database at {:?}", db_path);
+        info!("Opening database at {:?}", db_path);
 
         let connection = Connection::open(db_path)?;
 
@@ -28,7 +28,7 @@ impl Database {
         // Run migrations
         run_migrations(&connection)?;
 
-        info!("Database initialized successfully");
+        info!("Database connection established successfully");
 
         Ok(Database { connection })
     }
