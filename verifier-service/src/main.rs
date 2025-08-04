@@ -1,4 +1,5 @@
 mod database;
+mod upload;
 
 use std::net::SocketAddr;
 
@@ -9,9 +10,10 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use database::{Database, constants::DEFAULT_DB_PATH};
+use database::{constants::DEFAULT_DB_PATH, Database};
 use serde_json::{json, Value};
 use tracing::info;
+use upload::handle_upload;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -20,19 +22,22 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Governance Merkle Verifier Service");
 
-    // Open database
+    // Initialize database (create tables, run migrations)
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
     let _db = Database::new(&db_path)?;
-    info!("Database opened successfully");
+    info!("Database initialized successfully");
 
-    // Build application with routes
+    // Build application with route
+    // TODO: Current approach passes db_path and creates connections per-request.
+    // For high QPS, replace with SQLx connection pool for better performance.
     let app = Router::new()
         .route("/healthz", get(health_check))
         .route("/meta", get(get_meta))
-        .route("/upload", post(upload_snapshot))
+        .route("/upload", post(handle_upload))
         .route("/voter/{voting_wallet}", get(get_voter_summary))
         .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
-        .route("/proof/stake_account/{stake_account}", get(get_stake_proof));
+        .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
+        .with_state(db_path);
 
     // Run the server
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
@@ -59,11 +64,6 @@ async fn get_meta() -> Result<Json<Value>, StatusCode> {
         "signature": "",
         "created_at": ""
     })))
-}
-
-async fn upload_snapshot() -> Result<Json<Value>, StatusCode> {
-    info!("POST /upload - Snapshot upload requested");
-    Ok(Json(json!({"status": "not implemented"})))
 }
 
 async fn get_voter_summary(Path(voting_wallet): Path<String>) -> Result<Json<Value>, StatusCode> {

@@ -151,7 +151,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
                 .map(|delegation| {
                     let mut voting_wallet = delegation.withdrawer_pubkey;
 
-                    // Overwrite voting wallet if stake account has a withdraw authority that is 
+                    // Overwrite voting wallet if stake account has a withdraw authority that is
                     // mapped to a different wallet. Otherwise, use the withdrawer authority.
                     if let Some(manager) = stake_pool_voter_map.get(&delegation.withdrawer_pubkey) {
                         voting_wallet = *manager;

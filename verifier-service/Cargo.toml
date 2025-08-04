@@ -8,7 +8,7 @@ name = "verifier-service"
 path = "src/main.rs"
 
 [dependencies]
-axum = "0.8.4"
+axum = { version = "0.8.4", features = ["multipart"] }
 tokio = { version = "1.0", features = ["full"] }
 tower = "0.5.2"
 tower-http = { version = "0.6.6", features = ["cors", "trace"] }
@@ -27,3 +27,4 @@ anchor-lang = { workspace = true }
 solana-program = { workspace = true }
 gov-v1 = { version = "0.1.0", path = "../programs/gov-v1" }
 borsh = { version = "1.5.7" }
+bs58 = "0.5"
