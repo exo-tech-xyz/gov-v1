@@ -28,6 +28,20 @@ impl MetaMerkleSnapshot {
         Ok(())
     }
 
+    pub fn read_from_bytes(buf: Vec<u8>, is_compressed: bool) -> io::Result<Self> {
+        let decompressed_buf = if is_compressed {
+            let mut decoder = GzDecoder::new(&buf[..]);
+            let mut decompressed = Vec::new();
+            decoder.read_to_end(&mut decompressed)?;
+            decompressed
+        } else {
+            buf
+        };
+
+        Self::try_from_slice(&decompressed_buf)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+
     pub fn read(path: PathBuf, is_compressed: bool) -> io::Result<Self> {
         let mut file = File::open(path)?;
         let mut buf = Vec::new();
