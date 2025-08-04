@@ -43,6 +43,24 @@ curl -X POST http://localhost:3000/upload \
   -s
 ```
 
+### Check SQL Database
+
+```bash
+sqlite3 ./data/governance.db
+
+# List tables
+.tables
+
+# List rows in snapshot_meta
+select * from snapshot_meta limit 10;
+
+# List rows in vote_accounts
+select * from vote_accounts limit 10;
+
+# List rows in stake_accounts
+select * from stake_accounts limit 10;
+```
+
 ### Health Check
 
 ```bash
