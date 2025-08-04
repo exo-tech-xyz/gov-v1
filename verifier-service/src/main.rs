@@ -1,10 +1,11 @@
 mod database;
 mod upload;
+mod utils;
 
 use std::net::SocketAddr;
 
 use axum::{
-    extract::Path,
+    extract::{DefaultBodyLimit, Path},
     http::StatusCode,
     response::Json,
     routing::{get, post},
@@ -30,6 +31,7 @@ async fn main() -> anyhow::Result<()> {
     // Build application with route
     // TODO: Current approach passes db_path and creates connections per-request.
     // For high QPS, replace with SQLx connection pool for better performance.
+    // TODO: Add rate limiting middleware to prevent DoS attacks (e.g., 10 requests/min per IP)
     let app = Router::new()
         .route("/healthz", get(health_check))
         .route("/meta", get(get_meta))
@@ -37,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/voter/{voting_wallet}", get(get_voter_summary))
         .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
         .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
+        .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB limit for snapshot uploads
         .with_state(db_path);
 
     // Run the server

@@ -1,0 +1,214 @@
+//! Upload handling for snapshot files
+
+use anyhow::Result;
+use axum::{
+    extract::{Multipart, State},
+    http::StatusCode,
+    response::Json,
+};
+use cli::MetaMerkleSnapshot;
+use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
+use rusqlite::Connection;
+use serde_json::{json, Value};
+use solana_program::hash::hash;
+use tracing::{debug, info};
+
+use crate::database::models::{SnapshotMetaRecord, StakeAccountRecord, VoteAccountRecord};
+use crate::utils::validate_network;
+
+/// Handle POST /upload endpoint
+pub async fn handle_upload(
+    State(db_path): State<String>,
+    mut multipart: Multipart,
+) -> Result<Json<Value>, StatusCode> {
+    info!("POST /upload - Snapshot upload requested");
+
+    // 1. Extract metadata fields first.
+    let (slot, network, merkle_root, signature) =
+        extract_metadata_only(&mut multipart).await.map_err(|e| {
+            info!("Failed to extract metadata: {}", e);
+            StatusCode::BAD_REQUEST
+        })?;
+
+    // 2. Validate network is supported
+    validate_network(&network)?;
+
+    // 3: Verify signature over slot || merkle_root
+    verify_signature(&slot, &merkle_root, &signature).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    info!(
+        "Verified upload request: slot={}, merkle_root={}, signature={}",
+        slot, merkle_root, signature
+    );
+
+    // 4. Load the file.
+    let file_data = extract_remaining_file(&mut multipart).await.map_err(|e| {
+        info!("Failed to extract file: {}", e);
+        StatusCode::BAD_REQUEST
+    })?;
+    info!(
+        "Signature verified, processing file ({} bytes)",
+        file_data.len()
+    );
+
+    // 5. Parse snapshot file, verify merkle_root and slot from request fields.
+    let snapshot_hash = bs58::encode(hash(&file_data)).into_string();
+    let snapshot = MetaMerkleSnapshot::read_from_bytes(file_data, true).map_err(|e| {
+        info!("Failed to read snapshot: {}", e);
+        StatusCode::BAD_REQUEST
+    })?;
+    if bs58::encode(snapshot.root).into_string() != merkle_root || snapshot.slot != slot {
+        info!("Merkle root or slot in snapshot mismatch");
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // 6. Index data in database
+    index_snapshot_data(&db_path, &snapshot, &network, &merkle_root, &snapshot_hash)
+        .await
+        .map_err(|e| {
+            info!("Failed to index snapshot data: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Json(json!({
+        "status": "success",
+        "slot": slot,
+        "merkle_root": merkle_root,
+    })))
+}
+
+/// Index snapshot data in the database
+async fn index_snapshot_data(
+    db_path: &str,
+    snapshot: &MetaMerkleSnapshot,
+    network: &str,
+    merkle_root: &str,
+    snapshot_hash: &str,
+) -> Result<()> {
+    let conn = Connection::open(db_path)?;
+
+    // Create snapshot metadata record
+    let snapshot_meta = SnapshotMetaRecord {
+        network: network.to_string(),
+        slot: snapshot.slot,
+        merkle_root: merkle_root.to_string(),
+        snapshot_hash: snapshot_hash.to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    snapshot_meta.insert(&conn)?;
+
+    // Index vote accounts and stake accounts
+    for (bundle_idx, bundle) in snapshot.leaf_bundles.iter().enumerate() {
+        info!("Indexing bundle {} / {}", bundle_idx, snapshot.leaf_bundles.len());
+        let meta_leaf = &bundle.meta_merkle_leaf;
+
+        // Convert meta merkle proof to base58 strings
+        let meta_merkle_proof: Vec<String> = bundle
+            .proof
+            .as_ref()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .map(|hash| bs58::encode(hash).into_string())
+            .collect();
+
+        // Create vote account record
+        let vote_account_record = VoteAccountRecord {
+            network: network.to_string(),
+            snapshot_slot: snapshot.slot,
+            vote_account: meta_leaf.vote_account.to_string(),
+            voting_wallet: meta_leaf.voting_wallet.to_string(),
+            stake_merkle_root: bs58::encode(meta_leaf.stake_merkle_root).into_string(),
+            active_stake: meta_leaf.active_stake,
+            meta_merkle_proof,
+        };
+        vote_account_record.insert(&conn)?;
+
+        // Generate stake merkle tree under vote account
+        let hashed_nodes: Vec<[u8; 32]> = bundle
+            .stake_merkle_leaves
+            .iter()
+            .map(|n| n.hash().to_bytes())
+            .collect();
+        let stake_merkle = MerkleTree::new(&hashed_nodes[..], true);
+
+        // Create stake account records for each stake leaf
+        for (idx, stake_leaf) in bundle.stake_merkle_leaves.iter().enumerate() {
+            let stake_merkle_proof = get_proof(&stake_merkle, idx)
+                .iter()
+                .map(|hash| bs58::encode(hash).into_string())
+                .collect();
+
+            let stake_account_record = StakeAccountRecord {
+                network: network.to_string(),
+                snapshot_slot: snapshot.slot,
+                stake_account: stake_leaf.stake_account.to_string(),
+                vote_account: meta_leaf.vote_account.to_string(),
+                voting_wallet: stake_leaf.voting_wallet.to_string(),
+                active_stake: stake_leaf.active_stake,
+                stake_merkle_proof,
+            };
+
+            stake_account_record.insert(&conn)?;
+        }
+
+        debug!(
+            "Indexed bundle {}: vote_account={}, {} stake accounts",
+            bundle_idx,
+            meta_leaf.vote_account,
+            bundle.stake_merkle_leaves.len()
+        );
+    }
+
+    info!(
+        "Successfully indexed snapshot for slot {} with {} vote accounts",
+        snapshot.slot,
+        snapshot.leaf_bundles.len()
+    );
+
+    Ok(())
+}
+
+/// Extract metadata fields in sequence.
+async fn extract_metadata_only(multipart: &mut Multipart) -> Result<(u64, String, String, String)> {
+    macro_rules! extract_field {
+        ($name:expr) => {
+            multipart
+                .next_field()
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Next field is missing {}", $name))?
+                .text()
+                .await?
+        };
+    }
+
+    let slot = extract_field!("slot").parse()?;
+    let network = extract_field!("network");
+    let merkle_root = extract_field!("merkle_root");
+    let signature = extract_field!("signature");
+    Ok((slot, network, merkle_root, signature))
+}
+
+/// Extract the remaining file field (after metadata extraction).
+async fn extract_remaining_file(multipart: &mut Multipart) -> Result<Vec<u8>> {
+    Ok(multipart
+        .next_field()
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Missing file"))?
+        .bytes()
+        .await?
+        .to_vec())
+}
+
+/// Verify Ed25519 signature over slot || merkle_root
+fn verify_signature(slot: &u64, merkle_root: &str, signature: &str) -> Result<()> {
+    // TODO: Implement Ed25519 signature verification
+    // 1. Get operator pubkey from environment/config
+    // 2. Construct message: slot.to_le_bytes() || merkle_root.as_bytes()
+    // 3. Decode base58 signature
+    // 4. Verify signature using ed25519-dalek
+
+    info!(
+        "TODO: Verify signature for slot={}, merkle_root={}, sig={}",
+        slot, merkle_root, signature
+    );
+    Ok(())
+}

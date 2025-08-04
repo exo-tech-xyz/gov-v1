@@ -7,3 +7,4 @@ tmp/
 **/*.rs.bk
 node_modules
 *.db
+*.db-journal
