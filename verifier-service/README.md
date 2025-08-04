@@ -26,11 +26,33 @@ DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
 - `GET /proof/vote_account/:vote_account` - Get Merkle proof for vote account
 - `GET /proof/stake_account/:stake_account` - Get Merkle proof for stake account
 
+## Testing
+
+### Upload a Snapshot
+
+To test the upload endpoint with a snapshot (replace fields with actual values)
+
+```bash
+curl -X POST http://localhost:3000/upload \
+  -F "slot=340850340" \
+  -F "network=testnet" \
+  -F "merkle_root=8oaP5t8E6GEMVE19NFbCNAUxQ7GZe6q8c6XVWvgBgs5p" \
+  -F "signature=1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111" \
+  -F "file=@meta_merkle-340850340.zip" \
+  -w "\nHTTP Status: %{http_code}\n" \
+  -s
+```
+
+### Health Check
+
+```bash
+curl http://localhost:3000/healthz
+```
+
 ## Development Status
 
 This is a minimal implementation that will be expanded with:
 
-- SQLite database integration
 - Signature verification
 - Merkle proof generation
 - Data retention policies
