@@ -21,23 +21,46 @@ DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
 
 - `GET /healthz` - Health check
 - `GET /meta` - Metadata for most recent snapshot
-- `POST /upload` - Upload and index Merkle snapshots
+- `POST /upload/auth` - Authenticate upload request and get auth token
+- `POST /upload` - Upload and index Merkle snapshots (requires auth token)
 - `GET /voter/:voting_wallet` - Get vote and stake account summaries
 - `GET /proof/vote_account/:vote_account` - Get Merkle proof for vote account
 - `GET /proof/stake_account/:stake_account` - Get Merkle proof for stake account
 
 ## Testing
 
-### Upload a Snapshot
+### Upload a Snapshot (Two-Phase Authentication)
 
-To test the upload endpoint with a snapshot (replace fields with actual values)
+The upload process uses a two-phase authentication for better security and DoS protection:
+
+#### Step 1: Authenticate and get token
+
+```bash
+curl -X POST http://localhost:3000/upload/auth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "slot": 340850340,
+    "merkle_root": "8oaP5t8E6GEMVE19NFbCNAUxQ7GZe6q8c6XVWvgBgs5p",
+    "signature": "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+  }' \
+  -w "\nHTTP Status: %{http_code}\n"
+```
+
+Response:
+
+```json
+{
+  "token": "abc123def456",
+  "expires_in": 300
+}
+```
+
+#### Step 2: Upload file with token
 
 ```bash
 curl -X POST http://localhost:3000/upload \
-  -F "slot=340850340" \
+  -H "Authorization: Bearer abc123def456" \
   -F "network=testnet" \
-  -F "merkle_root=8oaP5t8E6GEMVE19NFbCNAUxQ7GZe6q8c6XVWvgBgs5p" \
-  -F "signature=1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111" \
   -F "file=@meta_merkle-340850340.zip" \
   -w "\nHTTP Status: %{http_code}\n" \
   -s

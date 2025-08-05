@@ -11,7 +11,10 @@ pub fn validate_network(network: &str) -> Result<(), StatusCode> {
             Ok(())
         }
         _ => {
-            info!("Invalid network '{}'. Must be one of: devnet, testnet, mainnet", network);
+            info!(
+                "Invalid network '{}'. Must be one of: devnet, testnet, mainnet",
+                network
+            );
             Err(StatusCode::BAD_REQUEST)
         }
     }

@@ -1,12 +1,17 @@
+mod auth_middleware;
 mod database;
+mod indexer;
+mod state;
 mod upload;
 mod utils;
 
 use std::net::SocketAddr;
 
+use auth_middleware::auth_middleware;
 use axum::{
     extract::{DefaultBodyLimit, Path},
     http::StatusCode,
+    middleware,
     response::Json,
     routing::{get, post},
     Router,
@@ -14,7 +19,8 @@ use axum::{
 use database::{constants::DEFAULT_DB_PATH, Database};
 use serde_json::{json, Value};
 use tracing::info;
-use upload::handle_upload;
+use state::{AppState, TokenStore};
+use upload::{handle_upload, handle_upload_auth};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -28,19 +34,30 @@ async fn main() -> anyhow::Result<()> {
     let _db = Database::new(&db_path)?;
     info!("Database initialized successfully");
 
-    // Build application with route
+    // Create shared app state
+    let app_state = AppState {
+        db_path: db_path.clone(),
+        token_store: TokenStore::new(),
+    };
+
+    // Build application with routes
     // TODO: Current approach passes db_path and creates connections per-request.
     // For high QPS, replace with SQLx connection pool for better performance.
     // TODO: Add rate limiting middleware to prevent DoS attacks (e.g., 10 requests/min per IP)
     let app = Router::new()
         .route("/healthz", get(health_check))
         .route("/meta", get(get_meta))
+        .route("/upload/auth", post(handle_upload_auth))
         .route("/upload", post(handle_upload))
         .route("/voter/{voting_wallet}", get(get_voter_summary))
         .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
         .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB limit for snapshot uploads
-        .with_state(db_path);
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            auth_middleware,
+        ))
+        .with_state(app_state);
 
     // Run the server
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
