@@ -5,16 +5,25 @@ mod utils;
 use std::net::SocketAddr;
 
 use axum::{
-    extract::{DefaultBodyLimit, Path},
+    extract::{DefaultBodyLimit, Path, Query, State},
     http::StatusCode,
     response::Json,
     routing::{get, post},
     Router,
 };
-use database::{constants::DEFAULT_DB_PATH, Database};
+use database::{constants::DEFAULT_DB_PATH, models::*, Database};
+use rusqlite::Connection;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use tracing::info;
 use upload::handle_upload;
+
+use crate::utils::validate_network;
+
+#[derive(Debug, Deserialize)]
+struct NetworkQuery {
+    network: Option<String>,
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -58,15 +67,34 @@ async fn health_check() -> &'static str {
     "ok"
 }
 
-// Placeholder handlers - will implement in subsequent tasks
-async fn get_meta() -> Result<Json<Value>, StatusCode> {
-    info!("GET /meta - Metadata requested");
-    Ok(Json(json!({
-        "slot": 0,
-        "merkle_root": "",
-        "signature": "",
-        "created_at": ""
-    })))
+async fn get_meta(
+    State(db_path): State<String>,
+    Query(params): Query<NetworkQuery>,
+) -> Result<Json<SnapshotMetaRecord>, StatusCode> {
+    let network = params.network.unwrap_or_else(|| "mainnet".to_string());
+    validate_network(&network)?;
+    
+    info!("GET /meta - Metadata requested for network: {}", network);
+
+    let conn = Connection::open(&db_path).map_err(|e| {
+        info!("Failed to open database: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match SnapshotMetaRecord::get_latest(&conn, &network) {
+        Ok(Some(record)) => {
+            info!("Found latest snapshot for network {}: slot {}", network, record.slot);
+            Ok(Json(record))
+        }
+        Ok(None) => {
+            info!("No snapshots found for network: {}", network);
+            Err(StatusCode::NOT_FOUND)
+        }
+        Err(e) => {
+            info!("Database error: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 async fn get_voter_summary(Path(voting_wallet): Path<String>) -> Result<Json<Value>, StatusCode> {
