@@ -1,5 +1,7 @@
 //! Upload handling for snapshot files
 
+use std::str::FromStr;
+
 use anyhow::Result;
 use axum::{
     extract::{Multipart, State},
@@ -10,7 +12,7 @@ use cli::MetaMerkleSnapshot;
 use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
 use rusqlite::Connection;
 use serde_json::{json, Value};
-use solana_program::hash::hash;
+use solana_sdk::{hash::hash, pubkey::Pubkey, signature::Signature};
 use tracing::{debug, info};
 
 use crate::database::models::{SnapshotMetaRecord, StakeAccountRecord, VoteAccountRecord};
@@ -33,8 +35,11 @@ pub async fn handle_upload(
     // 2. Validate network is supported
     validate_network(&network)?;
 
-    // 3: Verify signature over slot || merkle_root
-    verify_signature(&slot, &merkle_root, &signature).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    // 3: Verify signature over slot || merkle_root_bs58_bytes
+    verify_signature(&slot, &merkle_root, &signature).map_err(|e| {
+        info!("Signature verification failed: {}", e);
+        StatusCode::UNAUTHORIZED
+    })?;
     info!(
         "Verified upload request: slot={}, merkle_root={}, signature={}",
         slot, merkle_root, signature
@@ -98,7 +103,11 @@ async fn index_snapshot_data(
 
     // Index vote accounts and stake accounts
     for (bundle_idx, bundle) in snapshot.leaf_bundles.iter().enumerate() {
-        info!("Indexing bundle {} / {}", bundle_idx, snapshot.leaf_bundles.len());
+        info!(
+            "Indexing bundle {} / {}",
+            bundle_idx,
+            snapshot.leaf_bundles.len()
+        );
         let meta_leaf = &bundle.meta_merkle_leaf;
 
         // Convert meta merkle proof to base58 strings
@@ -198,17 +207,96 @@ async fn extract_remaining_file(multipart: &mut Multipart) -> Result<Vec<u8>> {
         .to_vec())
 }
 
-/// Verify Ed25519 signature over slot || merkle_root
+/// Verify Ed25519 signature over slot || merkle_root_bs58_bytes
 fn verify_signature(slot: &u64, merkle_root: &str, signature: &str) -> Result<()> {
-    // TODO: Implement Ed25519 signature verification
-    // 1. Get operator pubkey from environment/config
-    // 2. Construct message: slot.to_le_bytes() || merkle_root.as_bytes()
-    // 3. Decode base58 signature
-    // 4. Verify signature using ed25519-dalek
+    // Get operator pubkey from environment variable
+    let operator_pubkey_str = std::env::var("OPERATOR_PUBKEY")
+        .map_err(|_| anyhow::anyhow!("OPERATOR_PUBKEY env not set"))?;
+    let operator_pubkey = Pubkey::from_str(&operator_pubkey_str)?;
 
-    info!(
-        "TODO: Verify signature for slot={}, merkle_root={}, sig={}",
-        slot, merkle_root, signature
-    );
+    let mut message = Vec::new();
+    message.extend_from_slice(&slot.to_le_bytes());
+    message.extend_from_slice(merkle_root.as_bytes());
+
+    let signature = Signature::from_str(signature)?;
+    if !signature.verify(&operator_pubkey.to_bytes(), &message) {
+        return Err(anyhow::anyhow!("Verification failed"));
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solana_sdk::{signature::Keypair, signer::Signer};
+    use std::env;
+
+    const SLOT1: u64 = 12345;
+    const ROOT1: &str = "test_merkle_root_hash";
+    const ROOT2: &str = "different_merkle_root_hash";
+
+    /// Helper to set up environment
+    fn setup_env(pubkey: &str) {
+        env::set_var("OPERATOR_PUBKEY", pubkey);
+    }
+
+    /// Helper to create keypair and sign message
+    fn create_signed_message(slot: u64, merkle_root: &str) -> (Keypair, String) {
+        let keypair = Keypair::new();
+
+        let mut message = Vec::new();
+        message.extend_from_slice(&slot.to_le_bytes());
+        message.extend_from_slice(merkle_root.as_bytes());
+
+        let signature = keypair.sign_message(&message);
+        (keypair, signature.to_string())
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_verify_signature_success() {
+        let (keypair, signature) = create_signed_message(SLOT1, ROOT1);
+        setup_env(&keypair.pubkey().to_string());
+
+        let result = verify_signature(&SLOT1, ROOT1, &signature);
+        assert!(result.is_ok(), "Verification should succeed");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_verify_signature_invalid_signature() {
+        let (keypair, _) = create_signed_message(SLOT1, ROOT1);
+        let (_, wrong_signature) = create_signed_message(SLOT1, ROOT1);
+        setup_env(&keypair.pubkey().to_string());
+
+        let result = verify_signature(&SLOT1, ROOT1, &wrong_signature);
+        assert!(
+            result.is_err(),
+            "Verification should fail with wrong signature"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_verify_signature_missing_env_var() {
+        env::remove_var("OPERATOR_PUBKEY");
+
+        let result = verify_signature(&SLOT1, ROOT1, "dummy");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("OPERATOR_PUBKEY env not set"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_verify_signature_different_message() {
+        let (keypair, signature) = create_signed_message(SLOT1, ROOT1);
+        setup_env(&keypair.pubkey().to_string());
+
+        let result = verify_signature(&SLOT1, ROOT2, &signature);
+        assert!(result.is_err(), "Should fail with different message");
+    }
 }

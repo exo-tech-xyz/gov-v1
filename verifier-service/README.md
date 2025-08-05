@@ -5,13 +5,16 @@ A self-contained Rust web service for serving Merkle proofs and leaf nodes for S
 ## Quick Start
 
 ```bash
+# Set the operator public key for signature verification (replace with your own)
+export OPERATOR_PUBKEY="C5m2XDwZmjc7yHpy8N4KhQtFJLszasVpfB4c5MTuCsmg"
+
 # Run the service
 RUST_LOG=info cargo run --bin verifier-service
 
-# Run with custom database path
+# Optional: Run with custom database path
 DB_PATH="./data/governance.db" RUST_LOG=info cargo run --bin verifier-service
 
-# Run with in-memory database (for testing)
+# Optional: Run with in-memory database (for testing)
 DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
 
 # The service will start on http://localhost:3000
@@ -19,25 +22,47 @@ DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
 
 ## API Endpoints
 
+- `POST /upload` - Upload and index Merkle snapshots
 - `GET /healthz` - Health check
 - `GET /meta` - Metadata for most recent snapshot
-- `POST /upload` - Upload and index Merkle snapshots
 - `GET /voter/:voting_wallet` - Get vote and stake account summaries
 - `GET /proof/vote_account/:vote_account` - Get Merkle proof for vote account
 - `GET /proof/stake_account/:stake_account` - Get Merkle proof for stake account
 
+## Security
+
+### Signature Verification
+
+The `/upload` endpoint requires Ed25519 signature verification to prevent unauthorized snapshot uploads:
+
+- **Environment Variable**: Set `OPERATOR_PUBKEY` to the base58-encoded public key of the authorized operator
+- **Message Format**: Signatures are verified over `slot.to_le_bytes() || merkle_root_bs58_string.as_bytes()`
+- **Signature Format**: Base58-encoded Ed25519 signature
+
 ## Testing
+
+### Running Tests
+
+```bash
+# Run all tests with required environment variables
+RESTAKING_PROGRAM_ID=11111111111111111111111111111111 \
+VAULT_PROGRAM_ID=11111111111111111111111111111111 \
+TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111 \
+cargo test --bin verifier-service
+```
+
+**Note**: Tests use `serial_test` to run sequentially due to shared environment variable usage.
 
 ### Upload a Snapshot
 
-To test the upload endpoint with a snapshot (replace fields with actual values)
+To test the upload endpoint with a snapshot (replace fields with actual values):
 
 ```bash
 curl -X POST http://localhost:3000/upload \
   -F "slot=340850340" \
   -F "network=testnet" \
   -F "merkle_root=8oaP5t8E6GEMVE19NFbCNAUxQ7GZe6q8c6XVWvgBgs5p" \
-  -F "signature=1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111" \
+  -F "signature=43P1z1o7zXQbK3ocFUVrwGmg1bS8kdwh1tg4FNKJ2f2UDaEZ6pgvwLyMEf2qcXqf2vZ2RrPg9zJAM6pddV645Q2" \
   -F "file=@meta_merkle-340850340.zip" \
   -w "\nHTTP Status: %{http_code}\n" \
   -s
@@ -67,11 +92,16 @@ select * from stake_accounts limit 10;
 curl http://localhost:3000/healthz
 ```
 
-## Development Status
+## Dependencies
 
-This is a minimal implementation that will be expanded with:
+### Key Crates
 
-- Signature verification
-- Merkle proof generation
-- Data retention policies
-- Comprehensive error handling
+- `axum` - Web framework
+- `solana-sdk` - Solana blockchain SDK for signature verification
+- `rusqlite` - SQLite database interface
+- `serial_test` - Sequential test execution for environment variable isolation
+- `anyhow` - Error handling
+
+```
+
+```

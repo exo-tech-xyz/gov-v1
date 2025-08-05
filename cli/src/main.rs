@@ -12,6 +12,7 @@ use clap::Parser;
 use cli::{generate_meta_merkle_snapshot, utils::*, MetaMerkleSnapshot};
 use gov_v1::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig};
 use log::info;
+use solana_sdk::signer::Signer;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tip_router_operator_cli::{
@@ -448,12 +449,19 @@ fn main() -> Result<()> {
             read_path,
             is_compressed,
         } => {
+            let authority = read_keypair_file(&cli.authority_path).unwrap();
             let snapshot = MetaMerkleSnapshot::read(read_path.clone(), is_compressed)?;
             let snapshot_hash = MetaMerkleSnapshot::snapshot_hash(read_path, is_compressed)?;
 
             let encoded_root = bs58::encode(snapshot.root).into_string();
             let encoded_hash = bs58::encode(snapshot_hash.to_bytes()).into_string();
 
+            let mut message = Vec::new();
+            message.extend_from_slice(&snapshot.slot.to_le_bytes());
+            message.extend_from_slice(&encoded_root.as_bytes());
+            let signature = authority.sign_message(&message);
+
+            println!("Signature: {}", bs58::encode(signature).into_string());
             println!("Slot: {}", snapshot.slot);
             println!("Merkle Root: {}", encoded_root);
             println!("Snapshot Hash: {}", encoded_hash);

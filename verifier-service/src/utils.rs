@@ -6,12 +6,12 @@ use tracing::info;
 /// Validate that the network is one of the supported values
 pub fn validate_network(network: &str) -> Result<(), StatusCode> {
     match network {
-        "devnet" | "testnet" | "mainnet" => {
-            info!("Valid network: {}", network);
-            Ok(())
-        }
+        "devnet" | "testnet" | "mainnet" => Ok(()),
         _ => {
-            info!("Invalid network '{}'. Must be one of: devnet, testnet, mainnet", network);
+            info!(
+                "Invalid network '{}'. Must be one of: devnet, testnet, mainnet",
+                network
+            );
             Err(StatusCode::BAD_REQUEST)
         }
     }
