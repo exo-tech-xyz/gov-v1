@@ -68,6 +68,18 @@ curl -X POST http://localhost:3000/upload \
   -s
 ```
 
+### Get Metadata
+
+```bash
+curl http://localhost:3000/meta?network=testnet
+```
+
+### Get Voter Summary
+
+```bash
+curl http://localhost:3000/voter/9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr?network=testnet
+```
+
 ### Check SQL Database
 
 ```bash

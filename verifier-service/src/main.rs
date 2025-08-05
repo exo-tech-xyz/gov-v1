@@ -25,6 +25,12 @@ struct NetworkQuery {
     network: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct VoterQuery {
+    network: Option<String>,
+    slot: Option<u64>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
@@ -97,12 +103,61 @@ async fn get_meta(
     }
 }
 
-async fn get_voter_summary(Path(voting_wallet): Path<String>) -> Result<Json<Value>, StatusCode> {
-    info!("GET /voter/{} - Voter summary requested", voting_wallet);
+async fn get_voter_summary(
+    State(db_path): State<String>,
+    Path(voting_wallet): Path<String>,
+    Query(params): Query<VoterQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    let network = params.network.unwrap_or_else(|| "mainnet".to_string());
+    validate_network(&network)?;
+    
+    info!("GET /voter/{} - Voter summary requested for network: {}", voting_wallet, network);
+
+    let conn = Connection::open(&db_path).map_err(|e| {
+        info!("Failed to open database: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Get the latest snapshot slot if not specified
+    let snapshot_slot = if let Some(slot) = params.slot {
+        slot
+    } else {
+        match SnapshotMetaRecord::get_latest(&conn, &network) {
+            Ok(Some(record)) => record.slot,
+            Ok(None) => {
+                info!("No snapshots found for network: {}", network);
+                return Err(StatusCode::NOT_FOUND);
+            }
+            Err(e) => {
+                info!("Database error getting latest snapshot: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+    };
+
+    // Get vote accounts for this voting wallet
+    let vote_accounts = VoteAccountRecord::get_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot)
+        .map_err(|e| {
+            info!("Failed to get vote accounts: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Get stake accounts for this voting wallet
+    let stake_accounts = StakeAccountRecord::get_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot)
+        .map_err(|e| {
+            info!("Failed to get stake accounts: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    info!("Found {} vote accounts and {} stake accounts for voting wallet {}", 
+          vote_accounts.len(), stake_accounts.len(), voting_wallet);
+
     Ok(Json(json!({
-        "snapshot_slot": 0,
-        "vote_accounts": [],
-        "stake_accounts": []
+        "network": network,
+        "snapshot_slot": snapshot_slot,
+        "voting_wallet": voting_wallet,
+        "vote_accounts": vote_accounts,
+        "stake_accounts": stake_accounts
     })))
 }
 
