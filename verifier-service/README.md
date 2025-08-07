@@ -77,7 +77,19 @@ curl http://localhost:3000/meta?network=testnet
 ### Get Voter Summary
 
 ```bash
-curl http://localhost:3000/voter/9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr?network=testnet
+curl -i http://localhost:3000/voter/9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr?network=testnet
+```
+
+### Get Vote Proof
+
+```bash
+curl -i http://localhost:3000/proof/vote_account/1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd?network=testnet&slot=340850340
+```
+
+### Get Stake Proof
+
+```bash
+curl -i http://localhost:3000/proof/stake_account/DXmtAZdYsVZT8ir8uPkuY4cgBtsxWpZU4QKdpcAbFngo?network=testnet
 ```
 
 ### Check SQL Database
@@ -101,7 +113,7 @@ select * from stake_accounts limit 10;
 ### Health Check
 
 ```bash
-curl http://localhost:3000/healthz
+curl -i http://localhost:3000/healthz
 ```
 
 ## Dependencies

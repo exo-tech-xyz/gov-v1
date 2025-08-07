@@ -41,7 +41,7 @@ fn get_snapshot_slot(
             || SnapshotMetaRecord::get_latest(conn, network),
             "Database error getting latest snapshot",
         )?;
-        
+
         if let Some(record) = record_option {
             Ok(record.slot)
         } else {
@@ -109,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Health check endpoint
+// TODO: Health check endpoint
 async fn health_check() -> &'static str {
     info!("GET /healthz - Health check requested");
     "ok"
@@ -179,27 +179,90 @@ async fn get_voter_summary(
     })))
 }
 
-async fn get_vote_proof(Path(vote_account): Path<String>) -> Result<Json<Value>, StatusCode> {
+async fn get_vote_proof(
+    State(db_path): State<String>,
+    Path(vote_account): Path<String>,
+    Query(params): Query<VoterQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    let network = params.network.unwrap_or_else(|| "mainnet".to_string());
+    validate_network(&network)?;
+
     info!(
-        "GET /proof/vote_account/{} - Vote account proof requested",
-        vote_account
+        "GET /proof/vote_account/{} - for network: {}",
+        vote_account, network
     );
-    Ok(Json(json!({
-        "snapshot_slot": 0,
-        "meta_merkle_leaf": {},
-        "meta_merkle_proof": []
-    })))
+
+    let conn = get_db_connection(&db_path)?;
+    let snapshot_slot = get_snapshot_slot(&conn, &network, params.slot)?;
+
+    // Get vote account record from database
+    let vote_record_option = db_operation(
+        || VoteAccountRecord::get_by_account(&conn, &network, &vote_account, snapshot_slot),
+        "Failed to get vote account record",
+    )?;
+
+    if let Some(vote_record) = vote_record_option {
+        let meta_merkle_leaf = json!({
+            "voting_wallet": vote_record.voting_wallet,
+            "vote_account": vote_record.vote_account,
+            "stake_merkle_root": vote_record.stake_merkle_root,
+            "active_stake": vote_record.active_stake
+        });
+
+        Ok(Json(json!({
+            "snapshot_slot": snapshot_slot,
+            "meta_merkle_leaf": meta_merkle_leaf,
+            "meta_merkle_proof": vote_record.meta_merkle_proof
+        })))
+    } else {
+        info!(
+            "Vote account {} not found for network {} at slot {}",
+            vote_account, network, snapshot_slot
+        );
+        Err(StatusCode::NOT_FOUND)
+    }
 }
 
-async fn get_stake_proof(Path(stake_account): Path<String>) -> Result<Json<Value>, StatusCode> {
+async fn get_stake_proof(
+    State(db_path): State<String>,
+    Path(stake_account): Path<String>,
+    Query(params): Query<VoterQuery>,
+) -> Result<Json<Value>, StatusCode> {
+    let network = params.network.unwrap_or_else(|| "mainnet".to_string());
+    validate_network(&network)?;
+
     info!(
-        "GET /proof/stake_account/{} - Stake account proof requested",
-        stake_account
+        "GET /proof/stake_account/{} - for network: {}",
+        stake_account, network
     );
-    Ok(Json(json!({
-        "snapshot_slot": 0,
-        "stake_merkle_leaf": {},
-        "stake_merkle_proof": [],
-        "vote_account": ""
-    })))
+
+    let conn = get_db_connection(&db_path)?;
+    let snapshot_slot = get_snapshot_slot(&conn, &network, params.slot)?;
+
+    // Get stake account record from database
+    let stake_record_option = db_operation(
+        || StakeAccountRecord::get_by_account(&conn, &network, &stake_account, snapshot_slot),
+        "Failed to get stake account record",
+    )?;
+
+    if let Some(stake_record) = stake_record_option {
+        let stake_merkle_leaf = json!({
+            "voting_wallet": stake_record.voting_wallet,
+            "stake_account": stake_record.stake_account,
+            "active_stake": stake_record.active_stake
+        });
+
+        Ok(Json(json!({
+            "snapshot_slot": snapshot_slot,
+            "stake_merkle_leaf": stake_merkle_leaf,
+            "stake_merkle_proof": stake_record.stake_merkle_proof,
+            "vote_account": stake_record.vote_account
+        })))
+    } else {
+        info!(
+            "Stake account {} not found for network {} at slot {}",
+            stake_account, network, snapshot_slot
+        );
+        Err(StatusCode::NOT_FOUND)
+    }
 }
