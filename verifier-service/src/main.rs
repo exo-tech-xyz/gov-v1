@@ -20,6 +20,48 @@ use upload::handle_upload;
 
 use crate::utils::validate_network;
 
+// Helper functions for shared endpoint logic
+fn get_db_connection(db_path: &str) -> Result<Connection, StatusCode> {
+    Connection::open(db_path).map_err(|e| {
+        info!("Failed to open database: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
+}
+
+// Get the latest snapshot slot if not specified
+fn get_snapshot_slot(
+    conn: &Connection,
+    network: &str,
+    requested_slot: Option<u64>,
+) -> Result<u64, StatusCode> {
+    if let Some(slot) = requested_slot {
+        Ok(slot)
+    } else {
+        let record_option = db_operation(
+            || SnapshotMetaRecord::get_latest(conn, network),
+            "Database error getting latest snapshot",
+        )?;
+        
+        if let Some(record) = record_option {
+            Ok(record.slot)
+        } else {
+            info!("No snapshots found for network: {}", network);
+            Err(StatusCode::NOT_FOUND)
+        }
+    }
+}
+
+// Helper to wrap database operations with consistent error handling
+fn db_operation<T, F>(operation: F, error_msg: &str) -> Result<T, StatusCode>
+where
+    F: FnOnce() -> anyhow::Result<T>,
+{
+    operation().map_err(|e| {
+        info!("{}: {}", error_msg, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
+}
+
 #[derive(Debug, Deserialize)]
 struct NetworkQuery {
     network: Option<String>,
@@ -79,27 +121,20 @@ async fn get_meta(
 ) -> Result<Json<SnapshotMetaRecord>, StatusCode> {
     let network = params.network.unwrap_or_else(|| "mainnet".to_string());
     validate_network(&network)?;
-    
-    info!("GET /meta - Metadata requested for network: {}", network);
 
-    let conn = Connection::open(&db_path).map_err(|e| {
-        info!("Failed to open database: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    info!("GET /meta - for network: {}", network);
 
-    match SnapshotMetaRecord::get_latest(&conn, &network) {
-        Ok(Some(record)) => {
-            info!("Found latest snapshot for network {}: slot {}", network, record.slot);
-            Ok(Json(record))
-        }
-        Ok(None) => {
-            info!("No snapshots found for network: {}", network);
-            Err(StatusCode::NOT_FOUND)
-        }
-        Err(e) => {
-            info!("Database error: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+    let conn = get_db_connection(&db_path)?;
+    let meta_record_option = db_operation(
+        || SnapshotMetaRecord::get_latest(&conn, &network),
+        "Failed to get snapshot meta record",
+    )?;
+
+    if let Some(record) = meta_record_option {
+        Ok(Json(record))
+    } else {
+        info!("No snapshots found for network: {}", network);
+        Err(StatusCode::NOT_FOUND)
     }
 }
 
@@ -110,47 +145,30 @@ async fn get_voter_summary(
 ) -> Result<Json<Value>, StatusCode> {
     let network = params.network.unwrap_or_else(|| "mainnet".to_string());
     validate_network(&network)?;
-    
-    info!("GET /voter/{} - Voter summary requested for network: {}", voting_wallet, network);
 
-    let conn = Connection::open(&db_path).map_err(|e| {
-        info!("Failed to open database: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    info!("GET /voter/{} - for network: {}", voting_wallet, network);
 
-    // Get the latest snapshot slot if not specified
-    let snapshot_slot = if let Some(slot) = params.slot {
-        slot
-    } else {
-        match SnapshotMetaRecord::get_latest(&conn, &network) {
-            Ok(Some(record)) => record.slot,
-            Ok(None) => {
-                info!("No snapshots found for network: {}", network);
-                return Err(StatusCode::NOT_FOUND);
-            }
-            Err(e) => {
-                info!("Database error getting latest snapshot: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        }
-    };
+    let conn = get_db_connection(&db_path)?;
+    let snapshot_slot = get_snapshot_slot(&conn, &network, params.slot)?;
 
     // Get vote accounts for this voting wallet
-    let vote_accounts = VoteAccountRecord::get_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot)
-        .map_err(|e| {
-            info!("Failed to get vote accounts: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let vote_accounts = db_operation(
+        || VoteAccountRecord::get_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot),
+        "Failed to get vote accounts",
+    )?;
 
     // Get stake accounts for this voting wallet
-    let stake_accounts = StakeAccountRecord::get_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot)
-        .map_err(|e| {
-            info!("Failed to get stake accounts: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let stake_accounts = db_operation(
+        || StakeAccountRecord::get_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot),
+        "Failed to get stake accounts",
+    )?;
 
-    info!("Found {} vote accounts and {} stake accounts for voting wallet {}", 
-          vote_accounts.len(), stake_accounts.len(), voting_wallet);
+    info!(
+        "Found {} vote accounts and {} stake accounts for voting wallet {}",
+        vote_accounts.len(),
+        stake_accounts.len(),
+        voting_wallet
+    );
 
     Ok(Json(json!({
         "network": network,
