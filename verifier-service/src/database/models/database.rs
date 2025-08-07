@@ -1,4 +1,4 @@
-//! Database models
+//! Database schema models
 
 use serde::{Deserialize, Serialize};
 
@@ -32,21 +32,6 @@ pub struct StakeAccountRecord {
     pub voting_wallet: String,
     pub active_stake: u64,
     pub stake_merkle_proof: Vec<String>, // JSON array of base58 hashes
-}
-
-/// View of VoteAccountRecord
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VoteAccountSummary {
-    pub vote_account: String,
-    pub active_stake: u64,
-}
-
-/// Lightweight stake account summary for voter endpoint
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StakeAccountSummary {
-    pub stake_account: String,
-    pub vote_account: String,
-    pub active_stake: u64,
 }
 
 /// Snapshot metadata record
