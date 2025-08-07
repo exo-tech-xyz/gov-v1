@@ -31,14 +31,14 @@ impl VoteAccountRecord {
         Ok(())
     }
 
-    /// Get vote accounts by voting wallet, network and snapshot slot
-    pub fn get_by_voting_wallet(
+    /// Get vote account summaries filtered by voting wallet
+    pub fn get_summary_by_voting_wallet(
         conn: &Connection,
         network: &str,
         voting_wallet: &str,
         snapshot_slot: u64,
-    ) -> Result<Vec<VoteAccountRecord>> {
-        let sql = "SELECT * FROM vote_accounts \
+    ) -> Result<Vec<VoteAccountSummary>> {
+        let sql = "SELECT vote_account, active_stake FROM vote_accounts \
                    WHERE network = ? AND voting_wallet = ? AND snapshot_slot = ? \
                    ORDER BY vote_account";
         let params = vec![
@@ -49,7 +49,10 @@ impl VoteAccountRecord {
 
         let mut stmt = conn.prepare(sql)?;
         let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
-            Self::from_row(row)
+            Ok(VoteAccountSummary {
+                vote_account: row.get("vote_account")?,
+                active_stake: row.get("active_stake")?,
+            })
         })?;
 
         let mut records = Vec::new();
@@ -127,14 +130,14 @@ impl StakeAccountRecord {
         Ok(())
     }
 
-    /// Get stake accounts by voting wallet, network and snapshot slot
-    pub fn get_by_voting_wallet(
+    /// Get stake account summaries filtered by voting wallet
+    pub fn get_summary_by_voting_wallet(
         conn: &Connection,
         network: &str,
         voting_wallet: &str,
         snapshot_slot: u64,
-    ) -> Result<Vec<StakeAccountRecord>> {
-        let sql = "SELECT * FROM stake_accounts \
+    ) -> Result<Vec<StakeAccountSummary>> {
+        let sql = "SELECT stake_account, vote_account, active_stake FROM stake_accounts \
                    WHERE network = ? AND voting_wallet = ? AND snapshot_slot = ? \
                    ORDER BY stake_account";
         let params = vec![
@@ -145,7 +148,11 @@ impl StakeAccountRecord {
 
         let mut stmt = conn.prepare(sql)?;
         let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
-            Self::from_row(row)
+            Ok(StakeAccountSummary {
+                stake_account: row.get("stake_account")?,
+                vote_account: row.get("vote_account")?,
+                active_stake: row.get("active_stake")?,
+            })
         })?;
 
         let mut records = Vec::new();

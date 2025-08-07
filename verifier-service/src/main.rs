@@ -151,15 +151,15 @@ async fn get_voter_summary(
     let conn = get_db_connection(&db_path)?;
     let snapshot_slot = get_snapshot_slot(&conn, &network, params.slot)?;
 
-    // Get vote accounts for this voting wallet
+    // Get vote account summaries
     let vote_accounts = db_operation(
-        || VoteAccountRecord::get_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot),
+        || VoteAccountRecord::get_summary_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot),
         "Failed to get vote accounts",
     )?;
 
-    // Get stake accounts for this voting wallet
+    // Get stake account summaries
     let stake_accounts = db_operation(
-        || StakeAccountRecord::get_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot),
+        || StakeAccountRecord::get_summary_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot),
         "Failed to get stake accounts",
     )?;
 
@@ -210,6 +210,7 @@ async fn get_vote_proof(
         });
 
         Ok(Json(json!({
+            "network": network,
             "snapshot_slot": snapshot_slot,
             "meta_merkle_leaf": meta_merkle_leaf,
             "meta_merkle_proof": vote_record.meta_merkle_proof
@@ -253,6 +254,7 @@ async fn get_stake_proof(
         });
 
         Ok(Json(json!({
+            "network": network,
             "snapshot_slot": snapshot_slot,
             "stake_merkle_leaf": stake_merkle_leaf,
             "stake_merkle_proof": stake_record.stake_merkle_proof,
