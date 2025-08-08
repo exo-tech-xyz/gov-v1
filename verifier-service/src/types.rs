@@ -10,4 +10,3 @@ pub struct VoterQuery {
     pub network: Option<String>,
     pub slot: Option<u64>,
 }
-

@@ -1,9 +1,9 @@
 use anyhow::Result;
+use axum::http::StatusCode;
 use serde_json;
 use sqlx::{sqlite::SqlitePool, Row as SqlxRow};
 use std::convert::TryFrom;
 use tracing::debug;
-use axum::http::StatusCode;
 use tracing::info;
 
 use super::models::*;

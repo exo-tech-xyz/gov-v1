@@ -15,9 +15,11 @@ use axum::{
 use database::{constants::DEFAULT_DB_PATH, init_pool, models::*, operations::db_operation};
 use serde_json::{json, Value};
 use sqlx::sqlite::SqlitePool;
+use std::sync::Arc;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tracing::info;
-use upload::handle_upload;
 use types::{NetworkQuery, VoterQuery};
+use upload::handle_upload;
 
 use crate::utils::validate_network;
 
@@ -30,7 +32,7 @@ async fn get_snapshot_slot(
     match requested_slot {
         Some(s) => Ok(s),
         None => db_operation(
-            || SnapshotMetaRecord::get_latest_slot(&pool, &network),
+            || SnapshotMetaRecord::get_latest_slot(pool, network),
             "Failed to get latest slot",
         )
         .await?
@@ -56,17 +58,38 @@ async fn main() -> anyhow::Result<()> {
     let pool = init_pool(&db_path).await?;
     info!("Database initialized successfully");
 
-    // Build application with route
-    // TODO: Current approach passes db_path and creates connections per-request.
-    // For high QPS, replace with SQLx connection pool for better performance.
-    // TODO: Add rate limiting middleware to prevent DoS attacks (e.g., 10 requests/min per IP)
+    // Helper closure to define rate limiters
+    // Arguments:
+    //  per_second: interval per refill to the bucket (in seconds)
+    //  burst_size: starting number of requests in the bucket per IP
+    let rl = |per_second: u64, burst_size: u32| {
+        Arc::new(
+            GovernorConfigBuilder::default()
+                .per_second(per_second)
+                .burst_size(burst_size)
+                .finish()
+                .unwrap(),
+        )
+    };
+
+    // Rate limiting configs
+    let global_rl = rl(10, 10);
+    let upload_rl = rl(60, 2);
+
+    // Requests to /upload consume from both global and upload rate limits.
+    let upload_router = Router::new()
+        .route("/", post(handle_upload))
+        .layer(GovernorLayer { config: upload_rl });
+
+    // Build application with routes
     let app = Router::new()
         .route("/healthz", get(health_check))
         .route("/meta", get(get_meta))
-        .route("/upload", post(handle_upload))
+        .nest("/upload", upload_router)
         .route("/voter/{voting_wallet}", get(get_voter_summary))
         .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
         .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
+        .layer(GovernorLayer { config: global_rl })
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB limit for snapshot uploads
         .with_state(pool);
 
@@ -75,7 +98,11 @@ async fn main() -> anyhow::Result<()> {
     info!("Server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

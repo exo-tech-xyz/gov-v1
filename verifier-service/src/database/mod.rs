@@ -5,8 +5,8 @@ pub mod operations;
 pub mod sql;
 
 use anyhow::Result;
-use std::{fs, path::Path};
 use sqlx::sqlite::SqlitePool;
+use std::{fs, path::Path};
 use tracing::info;
 
 pub use migrator::run_migrations;
@@ -23,7 +23,7 @@ pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {
                 fs::create_dir_all(parent)?;
             }
         }
-        // Create the DB file if it doesn't exist 
+        // Create the DB file if it doesn't exist
         if !path.exists() {
             fs::File::create(path)?;
         }
