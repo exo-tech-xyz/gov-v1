@@ -74,10 +74,45 @@ curl -X POST http://localhost:3000/upload \
 curl http://localhost:3000/meta?network=testnet
 ```
 
+Example response:
+
+```json
+{
+  "network": "testnet",
+  "slot": 340850340,
+  "merkle_root": "8oaP5t8E6GEMVE19NFbCNAUxQ7GZe6q8c6XVWvgBgs5p",
+  "snapshot_hash": "2ejpKvga5pGMyQGhmi59U6PThwKFzLy8SAjxt5yG8raH",
+  "created_at": "2025-08-05T16:17:25.855006+00:00"
+}
+```
+
 ### Get Voter Summary
 
 ```bash
 curl -i http://localhost:3000/voter/9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr?network=testnet
+```
+
+Example response:
+
+```json
+{
+  "network": "testnet",
+  "snapshot_slot": 340850340,
+  "stake_accounts": [
+    {
+      "active_stake": 9997717120,
+      "stake_account": "DXmtAZdYsVZT8ir8uPkuY4cgBtsxWpZU4QKdpcAbFngo",
+      "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd"
+    }
+  ],
+  "vote_accounts": [
+    {
+      "active_stake": 32615703997228,
+      "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd"
+    }
+  ],
+  "voting_wallet": "9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr"
+}
 ```
 
 ### Get Vote Proof
@@ -86,10 +121,58 @@ curl -i http://localhost:3000/voter/9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr
 curl -i http://localhost:3000/proof/vote_account/1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd?network=testnet&slot=340850340
 ```
 
+Example response:
+
+```json
+{
+  "network": "testnet",
+  "snapshot_slot": 340850340
+  "meta_merkle_leaf": {
+    "active_stake": 32615703997228,
+    "stake_merkle_root": "FcBZ89hYQpb5aYcQeBvnBN8dRHoWsV2FdWdVVE369jw7",
+    "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd",
+    "voting_wallet": "9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr"
+  },
+  "meta_merkle_proof": [
+    "5MQsFvce5HZbiAa6ZFckbaDjw9834ZhGPVnW8jpmTF2F",
+    "FUymD22xJuTyUSm3Rvi4sEzZf5PCAyc183hJ8QGS6PGA",
+    "5ocvKp3VR4hrt2yFGiJMXHjwJcZg3ku7WMX2V3zBEC7u",
+    "Ht8zCJdynqNS5AFgiMXGv97MSEc1V5bvU2B68uQWZb5Z",
+    "2eqx4VuW5vaiDnvfhePW8taCa5AuVpViBKKRmQHbrwtN",
+    "7FdjixP6zEFdFHitme2yPhiX1ERwJW257MKAhyob5UKm",
+    "39nmdZYqWKMWzhET9tTq5xfWEeDthf69PJHrFPV9R1Ta",
+    "BCBq2GRwdmdaVBEvGb6K4BM4uDtgPuaDcHpoekzH5chx",
+    "BsKrjCspup6KtKjYe4bbxd2JHmuXEKdF2Efr2q1gHUzh",
+    "CPPSFu2AZb7yFSJHcXenrYp6BzLNfeTB6iKtMxYx5cQw",
+    "G5U1aG9EKRMX4znZc47LE1rdrJmJ8g5aCNydFRDSsxgf",
+    "DRoQrDBYKLPWYUPEg6vvDEri5hHNhNE2bmejLMHkmNik"
+  ],
+}
+```
+
 ### Get Stake Proof
 
 ```bash
 curl -i http://localhost:3000/proof/stake_account/DXmtAZdYsVZT8ir8uPkuY4cgBtsxWpZU4QKdpcAbFngo?network=testnet
+```
+
+Example response:
+
+```json
+{
+  "network": "testnet",
+  "snapshot_slot": 340850340,
+  "stake_merkle_leaf": {
+    "active_stake": 9997717120,
+    "stake_account": "DXmtAZdYsVZT8ir8uPkuY4cgBtsxWpZU4QKdpcAbFngo",
+    "voting_wallet": "9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr"
+  },
+  "stake_merkle_proof": [
+    "Gu8E91fBN2XeJECWpmxCH8gnx4zmsBor1ewWWGHyA375",
+    "468mq67yo9svHuQK9bqYx71E2opDaJtkqsEEBKEt1Bvr"
+  ],
+  "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd"
+}
 ```
 
 ### Check SQL Database
