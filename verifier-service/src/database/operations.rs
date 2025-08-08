@@ -3,6 +3,8 @@ use serde_json;
 use sqlx::{sqlite::SqlitePool, Row as SqlxRow};
 use std::convert::TryFrom;
 use tracing::debug;
+use axum::http::StatusCode;
+use tracing::info;
 
 use super::models::*;
 
@@ -236,4 +238,33 @@ impl SnapshotMetaRecord {
             Ok(None)
         }
     }
+
+    /// Get the latest slot for a network
+    pub async fn get_latest_slot(pool: &SqlitePool, network: &str) -> Result<Option<u64>> {
+        let row_opt = sqlx::query(
+            "SELECT slot FROM snapshot_meta
+             WHERE network = ? ORDER BY slot DESC LIMIT 1",
+        )
+        .bind(network)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(row) = row_opt {
+            Ok(Some(row.get::<i64, _>("slot") as u64))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// Wrapper for database operations with consistent error handling
+pub async fn db_operation<T, F, Fut>(operation: F, error_msg: &str) -> Result<T, StatusCode>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<T>>,
+{
+    operation().await.map_err(|e| {
+        info!("{}: {}", error_msg, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
 }

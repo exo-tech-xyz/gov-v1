@@ -1,7 +1,7 @@
 //! Database migration implementation (SQLx)
 
 use anyhow::Result;
-use sqlx::{sqlite::SqlitePool, Acquire};
+use sqlx::{sqlite::SqlitePool};
 use tracing::info;
 
 use super::constants::MIGRATION_DESCRIPTIONS;

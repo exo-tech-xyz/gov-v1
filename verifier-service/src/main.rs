@@ -11,7 +11,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use database::{constants::DEFAULT_DB_PATH, init_pool, models::*};
+use database::{constants::DEFAULT_DB_PATH, init_pool, models::*, operations::db_operation};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::sqlite::SqlitePool;
@@ -29,32 +29,19 @@ async fn get_snapshot_slot(
     if let Some(slot) = requested_slot {
         Ok(slot)
     } else {
-        let record_option = SnapshotMetaRecord::get_latest(pool, network)
-            .await
-            .map_err(|e| {
-                info!("Database error getting latest snapshot: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        let slot_opt = db_operation(
+            || SnapshotMetaRecord::get_latest_slot(&pool, &network),
+            "Failed to get latest slot",
+        )
+        .await?;
 
-        if let Some(record) = record_option {
-            Ok(record.slot)
+        if let Some(slot) = slot_opt {
+            Ok(slot)
         } else {
             info!("No snapshots found for network: {}", network);
             Err(StatusCode::NOT_FOUND)
         }
     }
-}
-
-// Helper to wrap database operations with consistent error handling
-async fn db_operation<T, F, Fut>(operation: F, error_msg: &str) -> Result<T, StatusCode>
-where
-    F: FnOnce() -> Fut,
-    Fut: std::future::Future<Output = anyhow::Result<T>>,
-{
-    operation().await.map_err(|e| {
-        info!("{}: {}", error_msg, e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
 }
 
 #[derive(Debug, Deserialize)]
