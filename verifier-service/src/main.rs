@@ -45,6 +45,12 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Governance Merkle Verifier Service");
 
+    // Check if OPERATOR_PUBKEY is set
+    let operator_pubkey = std::env::var("OPERATOR_PUBKEY");
+    if operator_pubkey.is_err() {
+        anyhow::bail!("OPERATOR_PUBKEY is not set");
+    }
+
     // Initialize database pool (create tables, run migrations)
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
     let pool = init_pool(&db_path).await?;
