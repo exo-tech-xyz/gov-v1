@@ -1,7 +1,7 @@
-//! Database migration implementation
+//! Database migration implementation (SQLx)
 
 use anyhow::Result;
-use rusqlite::{params, Connection};
+use sqlx::{sqlite::SqlitePool, Acquire};
 use tracing::info;
 
 use super::constants::MIGRATION_DESCRIPTIONS;
@@ -11,19 +11,19 @@ use super::sql::{
 };
 
 /// Run all pending database migrations
-pub fn run_migrations(conn: &Connection) -> Result<()> {
+pub async fn run_migrations(pool: &SqlitePool) -> Result<()> {
     info!("Running database migrations");
 
     // Create migrations table if it doesn't exist
-    create_migrations_table(conn)?;
+    create_migrations_table(pool).await?;
 
     // Get current version
-    let current_version = get_current_version(conn)?;
+    let current_version = get_current_version(pool).await?;
     info!("Current database version: {}", current_version);
 
     // Apply migrations in order
     if current_version < 1 {
-        apply_migration_v1(conn)?;
+        apply_migration_v1(pool).await?;
     }
 
     info!("All migrations completed");
@@ -31,44 +31,54 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
 }
 
 /// Create the schema_migrations table
-fn create_migrations_table(conn: &Connection) -> Result<()> {
-    conn.execute(CREATE_MIGRATIONS_TABLE_SQL, [])?;
+async fn create_migrations_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::query(CREATE_MIGRATIONS_TABLE_SQL)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
 /// Get the current schema version
-fn get_current_version(conn: &Connection) -> Result<i32> {
-    let mut stmt = conn.prepare("SELECT MAX(version) FROM schema_migrations")?;
-    let version: Option<i32> = stmt.query_row([], |row| row.get(0)).unwrap_or(None);
+async fn get_current_version(pool: &SqlitePool) -> Result<i32> {
+    let version: Option<i32> = sqlx::query_scalar("SELECT MAX(version) FROM schema_migrations")
+        .fetch_one(pool)
+        .await
+        .unwrap_or(None);
     Ok(version.unwrap_or(0))
 }
 
 /// Apply migration version 1: Initiate tables and indexes.
-fn apply_migration_v1(conn: &Connection) -> Result<()> {
+async fn apply_migration_v1(pool: &SqlitePool) -> Result<()> {
     info!("Applying migration v1: {}", MIGRATION_DESCRIPTIONS[0]);
 
-    let tx = conn.unchecked_transaction()?;
+    let mut tx = pool.begin().await?;
 
     // Create core tables and indexes
-    tx.execute(CREATE_VOTE_ACCOUNTS_TABLE_SQL, [])?;
-    tx.execute(CREATE_STAKE_ACCOUNTS_TABLE_SQL, [])?;
-    tx.execute(CREATE_SNAPSHOT_META_TABLE_SQL, [])?;
+    sqlx::query(CREATE_VOTE_ACCOUNTS_TABLE_SQL)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(CREATE_STAKE_ACCOUNTS_TABLE_SQL)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(CREATE_SNAPSHOT_META_TABLE_SQL)
+        .execute(&mut *tx)
+        .await?;
 
     for index_sql in CREATE_DB_INDEXES {
-        tx.execute(index_sql, [])?;
+        sqlx::query(index_sql).execute(&mut *tx).await?;
     }
 
     // Record migration
-    tx.execute(
+    sqlx::query(
         "INSERT INTO schema_migrations (version, applied_at, description) VALUES (?, ?, ?)",
-        params![
-            1,
-            chrono::Utc::now().to_rfc3339(),
-            MIGRATION_DESCRIPTIONS[0]
-        ],
-    )?;
+    )
+    .bind(1)
+    .bind(chrono::Utc::now().to_rfc3339())
+    .bind(MIGRATION_DESCRIPTIONS[0])
+    .execute(&mut *tx)
+    .await?;
 
-    tx.commit()?;
+    tx.commit().await?;
 
     info!("Migration v1 completed successfully");
     Ok(())

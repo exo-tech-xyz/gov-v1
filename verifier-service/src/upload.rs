@@ -10,9 +10,9 @@ use axum::{
 };
 use cli::MetaMerkleSnapshot;
 use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
-use rusqlite::Connection;
 use serde_json::{json, Value};
 use solana_sdk::{hash::hash, pubkey::Pubkey, signature::Signature};
+use sqlx::sqlite::SqlitePool;
 use tracing::{debug, info};
 
 use crate::database::models::{SnapshotMetaRecord, StakeAccountRecord, VoteAccountRecord};
@@ -20,7 +20,7 @@ use crate::utils::validate_network;
 
 /// Handle POST /upload endpoint
 pub async fn handle_upload(
-    State(db_path): State<String>,
+    State(pool): State<SqlitePool>,
     mut multipart: Multipart,
 ) -> Result<Json<Value>, StatusCode> {
     info!("POST /upload - Snapshot upload requested");
@@ -67,7 +67,7 @@ pub async fn handle_upload(
     }
 
     // 6. Index data in database
-    index_snapshot_data(&db_path, &snapshot, &network, &merkle_root, &snapshot_hash)
+    index_snapshot_data(&pool, &snapshot, &network, &merkle_root, &snapshot_hash)
         .await
         .map_err(|e| {
             info!("Failed to index snapshot data: {}", e);
@@ -83,14 +83,12 @@ pub async fn handle_upload(
 
 /// Index snapshot data in the database
 async fn index_snapshot_data(
-    db_path: &str,
+    pool: &SqlitePool,
     snapshot: &MetaMerkleSnapshot,
     network: &str,
     merkle_root: &str,
     snapshot_hash: &str,
 ) -> Result<()> {
-    let conn = Connection::open(db_path)?;
-
     // Create snapshot metadata record
     let snapshot_meta = SnapshotMetaRecord {
         network: network.to_string(),
@@ -99,7 +97,7 @@ async fn index_snapshot_data(
         snapshot_hash: snapshot_hash.to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
     };
-    snapshot_meta.insert(&conn)?;
+    snapshot_meta.insert(pool).await?;
 
     // Index vote accounts and stake accounts
     for (bundle_idx, bundle) in snapshot.leaf_bundles.iter().enumerate() {
@@ -129,7 +127,7 @@ async fn index_snapshot_data(
             active_stake: meta_leaf.active_stake,
             meta_merkle_proof,
         };
-        vote_account_record.insert(&conn)?;
+        vote_account_record.insert(pool).await?;
 
         // Generate stake merkle tree under vote account
         let hashed_nodes: Vec<[u8; 32]> = bundle
@@ -156,7 +154,7 @@ async fn index_snapshot_data(
                 stake_merkle_proof,
             };
 
-            stake_account_record.insert(&conn)?;
+            stake_account_record.insert(pool).await?;
         }
 
         debug!(

@@ -11,36 +11,30 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use database::{constants::DEFAULT_DB_PATH, models::*, Database};
-use rusqlite::Connection;
+use database::{constants::DEFAULT_DB_PATH, init_pool, models::*};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use sqlx::sqlite::SqlitePool;
 use tracing::info;
 use upload::handle_upload;
 
 use crate::utils::validate_network;
 
-// Helper functions for shared endpoint logic
-fn get_db_connection(db_path: &str) -> Result<Connection, StatusCode> {
-    Connection::open(db_path).map_err(|e| {
-        info!("Failed to open database: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
-}
-
 // Get the latest snapshot slot if not specified
-fn get_snapshot_slot(
-    conn: &Connection,
+async fn get_snapshot_slot(
+    pool: &SqlitePool,
     network: &str,
     requested_slot: Option<u64>,
 ) -> Result<u64, StatusCode> {
     if let Some(slot) = requested_slot {
         Ok(slot)
     } else {
-        let record_option = db_operation(
-            || SnapshotMetaRecord::get_latest(conn, network),
-            "Database error getting latest snapshot",
-        )?;
+        let record_option = SnapshotMetaRecord::get_latest(pool, network)
+            .await
+            .map_err(|e| {
+                info!("Database error getting latest snapshot: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
         if let Some(record) = record_option {
             Ok(record.slot)
@@ -52,11 +46,12 @@ fn get_snapshot_slot(
 }
 
 // Helper to wrap database operations with consistent error handling
-fn db_operation<T, F>(operation: F, error_msg: &str) -> Result<T, StatusCode>
+async fn db_operation<T, F, Fut>(operation: F, error_msg: &str) -> Result<T, StatusCode>
 where
-    F: FnOnce() -> anyhow::Result<T>,
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<T>>,
 {
-    operation().map_err(|e| {
+    operation().await.map_err(|e| {
         info!("{}: {}", error_msg, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })
@@ -80,9 +75,9 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Governance Merkle Verifier Service");
 
-    // Initialize database (create tables, run migrations)
+    // Initialize database pool (create tables, run migrations)
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
-    let _db = Database::new(&db_path)?;
+    let pool = init_pool(&db_path).await?;
     info!("Database initialized successfully");
 
     // Build application with route
@@ -97,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
         .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB limit for snapshot uploads
-        .with_state(db_path);
+        .with_state(pool);
 
     // Run the server
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
@@ -109,14 +104,14 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// TODO: Health check endpoint
+// Health check endpoint
 async fn health_check() -> &'static str {
     info!("GET /healthz - Health check requested");
     "ok"
 }
 
 async fn get_meta(
-    State(db_path): State<String>,
+    State(pool): State<SqlitePool>,
     Query(params): Query<NetworkQuery>,
 ) -> Result<Json<SnapshotMetaRecord>, StatusCode> {
     let network = params.network.unwrap_or_else(|| "mainnet".to_string());
@@ -124,11 +119,11 @@ async fn get_meta(
 
     info!("GET /meta - for network: {}", network);
 
-    let conn = get_db_connection(&db_path)?;
     let meta_record_option = db_operation(
-        || SnapshotMetaRecord::get_latest(&conn, &network),
+        || SnapshotMetaRecord::get_latest(&pool, &network),
         "Failed to get snapshot meta record",
-    )?;
+    )
+    .await?;
 
     if let Some(record) = meta_record_option {
         Ok(Json(record))
@@ -139,7 +134,7 @@ async fn get_meta(
 }
 
 async fn get_voter_summary(
-    State(db_path): State<String>,
+    State(pool): State<SqlitePool>,
     Path(voting_wallet): Path<String>,
     Query(params): Query<VoterQuery>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -148,20 +143,35 @@ async fn get_voter_summary(
 
     info!("GET /voter/{} - for network: {}", voting_wallet, network);
 
-    let conn = get_db_connection(&db_path)?;
-    let snapshot_slot = get_snapshot_slot(&conn, &network, params.slot)?;
+    let snapshot_slot = get_snapshot_slot(&pool, &network, params.slot).await?;
 
     // Get vote account summaries
     let vote_accounts = db_operation(
-        || VoteAccountRecord::get_summary_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot),
+        || {
+            VoteAccountRecord::get_summary_by_voting_wallet(
+                &pool,
+                &network,
+                &voting_wallet,
+                snapshot_slot,
+            )
+        },
         "Failed to get vote accounts",
-    )?;
+    )
+    .await?;
 
     // Get stake account summaries
     let stake_accounts = db_operation(
-        || StakeAccountRecord::get_summary_by_voting_wallet(&conn, &network, &voting_wallet, snapshot_slot),
+        || {
+            StakeAccountRecord::get_summary_by_voting_wallet(
+                &pool,
+                &network,
+                &voting_wallet,
+                snapshot_slot,
+            )
+        },
         "Failed to get stake accounts",
-    )?;
+    )
+    .await?;
 
     info!(
         "Found {} vote accounts and {} stake accounts for voting wallet {}",
@@ -180,7 +190,7 @@ async fn get_voter_summary(
 }
 
 async fn get_vote_proof(
-    State(db_path): State<String>,
+    State(pool): State<SqlitePool>,
     Path(vote_account): Path<String>,
     Query(params): Query<VoterQuery>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -192,14 +202,14 @@ async fn get_vote_proof(
         vote_account, network
     );
 
-    let conn = get_db_connection(&db_path)?;
-    let snapshot_slot = get_snapshot_slot(&conn, &network, params.slot)?;
+    let snapshot_slot = get_snapshot_slot(&pool, &network, params.slot).await?;
 
     // Get vote account record from database
     let vote_record_option = db_operation(
-        || VoteAccountRecord::get_by_account(&conn, &network, &vote_account, snapshot_slot),
+        || VoteAccountRecord::get_by_account(&pool, &network, &vote_account, snapshot_slot),
         "Failed to get vote account record",
-    )?;
+    )
+    .await?;
 
     if let Some(vote_record) = vote_record_option {
         let meta_merkle_leaf = json!({
@@ -225,7 +235,7 @@ async fn get_vote_proof(
 }
 
 async fn get_stake_proof(
-    State(db_path): State<String>,
+    State(pool): State<SqlitePool>,
     Path(stake_account): Path<String>,
     Query(params): Query<VoterQuery>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -237,14 +247,14 @@ async fn get_stake_proof(
         stake_account, network
     );
 
-    let conn = get_db_connection(&db_path)?;
-    let snapshot_slot = get_snapshot_slot(&conn, &network, params.slot)?;
+    let snapshot_slot = get_snapshot_slot(&pool, &network, params.slot).await?;
 
     // Get stake account record from database
     let stake_record_option = db_operation(
-        || StakeAccountRecord::get_by_account(&conn, &network, &stake_account, snapshot_slot),
+        || StakeAccountRecord::get_by_account(&pool, &network, &stake_account, snapshot_slot),
         "Failed to get stake account record",
-    )?;
+    )
+    .await?;
 
     if let Some(stake_record) = stake_record_option {
         let stake_merkle_leaf = json!({

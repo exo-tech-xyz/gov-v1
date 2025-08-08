@@ -5,36 +5,38 @@ pub mod operations;
 pub mod sql;
 
 use anyhow::Result;
-use rusqlite::Connection;
+use sqlx::sqlite::SqlitePool;
 use tracing::info;
 
 pub use migrator::run_migrations;
 
-/// Database manager for the verifier service
-pub struct Database {
-    connection: Connection,
-}
+/// Create a new SQLx pool and run migrations
+pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {
+    info!("Opening database at {:?}", db_path);
 
-impl Database {
-    /// Create a new database connection and run migrations
-    pub fn new(db_path: &str) -> Result<Self> {
-        info!("Opening database at {:?}", db_path);
+    // SQLite URL form for SQLx
+    let db_url = if db_path == ":memory:" {
+        "sqlite::memory:".to_string()
+    } else {
+        format!("sqlite:{}", db_path)
+    };
 
-        let connection = Connection::open(db_path)?;
+    let pool = SqlitePool::connect(&db_url).await?;
 
-        // Enable foreign key constraints
-        connection.execute("PRAGMA foreign_keys = ON", [])?;
+    // Enable pragma settings for better concurrency
+    sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(&pool)
+        .await?;
+    sqlx::query("PRAGMA journal_mode = WAL")
+        .execute(&pool)
+        .await?;
+    sqlx::query("PRAGMA synchronous = NORMAL")
+        .execute(&pool)
+        .await?;
 
-        // Run migrations
-        run_migrations(&connection)?;
+    // Run migrations
+    run_migrations(&pool).await?;
 
-        info!("Database connection established successfully");
-
-        Ok(Database { connection })
-    }
-
-    /// Get a reference to the database connection
-    pub fn connection(&self) -> &Connection {
-        &self.connection
-    }
+    info!("Database pool initialized successfully");
+    Ok(pool)
 }
