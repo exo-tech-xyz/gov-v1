@@ -5,6 +5,7 @@ pub mod operations;
 pub mod sql;
 
 use anyhow::Result;
+use std::{fs, path::Path};
 use sqlx::sqlite::SqlitePool;
 use tracing::info;
 
@@ -13,6 +14,20 @@ pub use migrator::run_migrations;
 /// Create a new SQLx pool and run migrations
 pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {
     info!("Opening database at {:?}", db_path);
+
+    // Ensure parent directory exists
+    if db_path != ":memory:" {
+        let path = Path::new(db_path);
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+        // Create the DB file if it doesn't exist 
+        if !path.exists() {
+            fs::File::create(path)?;
+        }
+    }
 
     // SQLite URL form for SQLx
     let db_url = if db_path == ":memory:" {
