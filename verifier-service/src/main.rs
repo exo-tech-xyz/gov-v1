@@ -1,4 +1,5 @@
 mod database;
+mod types;
 mod upload;
 mod utils;
 
@@ -12,11 +13,11 @@ use axum::{
     Router,
 };
 use database::{constants::DEFAULT_DB_PATH, init_pool, models::*, operations::db_operation};
-use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::sqlite::SqlitePool;
 use tracing::info;
 use upload::handle_upload;
+use types::{NetworkQuery, VoterQuery};
 
 use crate::utils::validate_network;
 
@@ -26,33 +27,15 @@ async fn get_snapshot_slot(
     network: &str,
     requested_slot: Option<u64>,
 ) -> Result<u64, StatusCode> {
-    if let Some(slot) = requested_slot {
-        Ok(slot)
-    } else {
-        let slot_opt = db_operation(
+    match requested_slot {
+        Some(s) => Ok(s),
+        None => db_operation(
             || SnapshotMetaRecord::get_latest_slot(&pool, &network),
             "Failed to get latest slot",
         )
-        .await?;
-
-        if let Some(slot) = slot_opt {
-            Ok(slot)
-        } else {
-            info!("No snapshots found for network: {}", network);
-            Err(StatusCode::NOT_FOUND)
-        }
+        .await?
+        .ok_or(StatusCode::NOT_FOUND),
     }
-}
-
-#[derive(Debug, Deserialize)]
-struct NetworkQuery {
-    network: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct VoterQuery {
-    network: Option<String>,
-    slot: Option<u64>,
 }
 
 #[tokio::main]
