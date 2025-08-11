@@ -17,6 +17,14 @@ pub fn validate_network(network: &str) -> Result<(), StatusCode> {
     }
 }
 
+/// Parse an environment variable into a type implementing FromStr, with a default fallback
+pub fn env_parse<T: std::str::FromStr>(key: &str, default: T) -> T {
+    std::env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

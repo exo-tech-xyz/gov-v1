@@ -4,6 +4,7 @@ pub mod models;
 pub mod operations;
 pub mod sql;
 
+use crate::utils::env_parse;
 use anyhow::Result;
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
@@ -35,7 +36,10 @@ pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {
     // Build connect options and pool options
     let (url, default_max_connections) = if db_path == ":memory:" {
         // Shared in-memory DB; keep a single connection for simplicity
-        ("sqlite:file:memdb?mode=memory&cache=shared".to_string(), 1u32)
+        (
+            "sqlite:file:memdb?mode=memory&cache=shared".to_string(),
+            1u32,
+        )
     } else {
         (format!("sqlite:{}", db_path), 4u32)
     };
@@ -48,11 +52,7 @@ pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {
         .disable_statement_logging()
         .pragma("busy_timeout", "5000");
 
-    let max_conns = std::env::var("SQLITE_MAX_CONNECTIONS")
-        .ok()
-        .and_then(|v| v.parse::<u32>().ok())
-        .filter(|&n| n >= 1)
-        .unwrap_or(default_max_connections);
+    let max_conns = env_parse::<u32>("SQLITE_MAX_CONNECTIONS", default_max_connections).max(1);
 
     let pool = SqlitePoolOptions::new()
         .max_connections(max_conns)

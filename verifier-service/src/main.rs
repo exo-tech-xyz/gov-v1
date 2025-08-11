@@ -21,10 +21,13 @@ use tracing::info;
 use types::{NetworkQuery, VoterQuery};
 use upload::handle_upload;
 
-use crate::{middleware::inject_client_ip, utils::validate_network};
+use crate::{
+    middleware::inject_client_ip,
+    utils::{env_parse, validate_network},
+};
 
 // Server configuration constants
-const DEFAULT_BODY_LIMIT_BYTES: usize = 100 * 1024 * 1024; // 100MB for uploads
+const DEFAULT_BODY_LIMIT: usize = 100 * 1024 * 1024; // 100MB for uploads
 const DEFAULT_PORT: u16 = 3000; // override with PORT env var
 const DEFAULT_NETWORK: &str = "mainnet";
 
@@ -76,12 +79,20 @@ async fn main() -> anyhow::Result<()> {
             )
         };
 
-        let global_rl = rl(10, 10);
-        let upload_rl = rl(60, 2);
+        // Rate limits configurable via environment variables with sane defaults
+        let global_per_second: u64 = env_parse("GLOBAL_RATE_PER_SECOND", 10);
+        let global_burst: u32 = env_parse("GLOBAL_RATE_BURST", 10);
+        let upload_per_second: u64 = env_parse("UPLOAD_RATE_PER_SECOND", 60);
+        let upload_burst: u32 = env_parse("UPLOAD_RATE_BURST", 2);
+
+        let global_rl = rl(global_per_second, global_burst);
+        let upload_rl = rl(upload_per_second, upload_burst);
+
+        let body_limit = env_parse::<u64>("UPLOAD_BODY_LIMIT", DEFAULT_BODY_LIMIT as u64) as usize;
 
         let upload_router = Router::new()
             .route("/", post(handle_upload))
-            .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT_BYTES))
+            .layer(DefaultBodyLimit::max(body_limit))
             .layer(axum::middleware::from_fn(inject_client_ip))
             .layer(GovernorLayer { config: upload_rl });
 
@@ -99,10 +110,7 @@ async fn main() -> anyhow::Result<()> {
     .into_make_service_with_connect_info::<SocketAddr>(); // Include socket address for rate limiting
 
     // Run the server
-    let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(DEFAULT_PORT);
+    let port: u16 = env_parse("PORT", DEFAULT_PORT);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("Server listening on {}", addr);
 
