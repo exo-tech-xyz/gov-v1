@@ -80,9 +80,9 @@ async fn main() -> anyhow::Result<()> {
         };
 
         // Rate limits configurable via environment variables with sane defaults
-        let global_per_second: u64 = env_parse("GLOBAL_RATE_PER_SECOND", 10);
+        let global_per_second: u64 = env_parse("GLOBAL_REFILL_INTERVAL", 10);
         let global_burst: u32 = env_parse("GLOBAL_RATE_BURST", 10);
-        let upload_per_second: u64 = env_parse("UPLOAD_RATE_PER_SECOND", 60);
+        let upload_per_second: u64 = env_parse("UPLOAD_REFILL_INTERVAL", 60);
         let upload_burst: u32 = env_parse("UPLOAD_RATE_BURST", 2);
 
         let global_rl = rl(global_per_second, global_burst);
