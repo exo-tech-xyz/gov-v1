@@ -51,6 +51,35 @@ TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111 \
 cargo test --bin verifier-service
 ```
 
+## Docker (runtime-only, prebuilt binary)
+
+```bash
+# 1) Build the binary locally
+cargo build --release --bin verifier-service
+
+# 2) Build a minimal runtime image (copies the binary only)
+docker build -f verifier-service/Dockerfile -t verifier-service:local .
+
+# 3) Run the container (persists DB to ./data)
+docker run --rm -p 3000:3000 \
+  -e OPERATOR_PUBKEY="$OPERATOR_PUBKEY" \
+  -e RUST_LOG=info \
+  -v $(pwd)/data:/data \
+  verifier-service:local
+
+# Health check
+curl -s http://localhost:3000/healthz
+```
+
+Environment variables:
+
+- OPERATOR_PUBKEY (required)
+- DB_PATH (optional, defaults to /data/governance.db inside container)
+- PORT (optional, defaults to 3000)
+
+<!-- TODO: Add docker-compose for dev convenience -->
+<!-- TODO: Add Docker HEALTHCHECK using /healthz -->
+
 **Note**: Tests use `serial_test` to run sequentially due to shared environment variable usage.
 
 ### Upload a Snapshot
