@@ -158,7 +158,7 @@ async fn get_voter_summary(
 
     info!("GET /voter/{} - for network: {}", voting_wallet, network);
 
-    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
+    let snapshot_slot = params.slot;
 
     // Get vote account summaries
     let vote_accounts = db_operation(
@@ -217,7 +217,7 @@ async fn get_vote_proof(
         vote_account, network
     );
 
-    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
+    let snapshot_slot = params.slot;
 
     // Get vote account record from database
     let vote_record_option = db_operation(
@@ -262,7 +262,7 @@ async fn get_stake_proof(
         stake_account, network
     );
 
-    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
+    let snapshot_slot = params.slot;
 
     // Get stake account record from database
     let stake_record_option = db_operation(
