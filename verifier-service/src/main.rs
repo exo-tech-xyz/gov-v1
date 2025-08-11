@@ -63,56 +63,51 @@ async fn main() -> anyhow::Result<()> {
     let pool = init_pool(&db_path).await?;
     info!("Database initialized successfully");
 
-    // Helper closure to define rate limiters
-    // Arguments:
-    //  per_second: interval per refill to the bucket (in seconds)
-    //  burst_size: starting number of requests in the bucket per IP
-    let rl = |per_second: u64, burst_size: u32| {
-        Arc::new(
-            GovernorConfigBuilder::default()
-                .per_second(per_second)
-                .burst_size(burst_size)
-                .finish()
-                .unwrap(),
-        )
-    };
-
-    // Rate limiting configs
-    let global_rl = rl(10, 10);
-    let upload_rl = rl(60, 2);
-
-    // Requests to /upload consume from both global and upload rate limits.
-    let upload_router = Router::new()
-        .route("/", post(handle_upload))
-        // Apply larger body limit only to upload route
-        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT_BYTES))
-        .layer(axum::middleware::from_fn(inject_client_ip))
-        .layer(GovernorLayer { config: upload_rl });
-
     // Build application with routes
-    let app = Router::new()
-        .route("/healthz", get(health_check))
-        .route("/meta", get(get_meta))
-        .nest("/upload", upload_router)
-        .route("/voter/{voting_wallet}", get(get_voter_summary))
-        .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
-        .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
-        .layer(axum::middleware::from_fn(inject_client_ip))
-        .layer(GovernorLayer { config: global_rl })
-        .with_state(pool);
+    let app = {
+        // Helper for rate limiter configs
+        let rl = |per_second: u64, burst_size: u32| {
+            Arc::new(
+                GovernorConfigBuilder::default()
+                    .per_second(per_second)
+                    .burst_size(burst_size)
+                    .finish()
+                    .expect("valid rate limiter config"),
+            )
+        };
+
+        let global_rl = rl(10, 10);
+        let upload_rl = rl(60, 2);
+
+        let upload_router = Router::new()
+            .route("/", post(handle_upload))
+            .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT_BYTES))
+            .layer(axum::middleware::from_fn(inject_client_ip))
+            .layer(GovernorLayer { config: upload_rl });
+
+        Router::new()
+            .route("/healthz", get(health_check))
+            .route("/meta", get(get_meta))
+            .nest("/upload", upload_router)
+            .route("/voter/{voting_wallet}", get(get_voter_summary))
+            .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
+            .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
+            .layer(axum::middleware::from_fn(inject_client_ip))
+            .layer(GovernorLayer { config: global_rl })
+            .with_state(pool.clone())
+    }
+    .into_make_service_with_connect_info::<SocketAddr>(); // Include socket address for rate limiting
 
     // Run the server
-    let port: u16 = std::env::var("PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(DEFAULT_PORT);
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_PORT);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("Server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(
-        listener,
-        // Include soc
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
@@ -126,13 +121,13 @@ async fn get_meta(
     State(pool): State<SqlitePool>,
     Query(params): Query<NetworkQuery>,
 ) -> Result<Json<SnapshotMetaRecord>, StatusCode> {
-    let network = params.network.unwrap_or_else(|| DEFAULT_NETWORK.to_string());
-    validate_network(&network)?;
+    let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
+    validate_network(network)?;
 
     info!("GET /meta - for network: {}", network);
 
     let meta_record_option = db_operation(
-        || SnapshotMetaRecord::get_latest(&pool, &network),
+        || SnapshotMetaRecord::get_latest(&pool, network),
         "Failed to get snapshot meta record",
     )
     .await?;
@@ -150,19 +145,19 @@ async fn get_voter_summary(
     Path(voting_wallet): Path<String>,
     Query(params): Query<VoterQuery>,
 ) -> Result<Json<Value>, StatusCode> {
-    let network = params.network.unwrap_or_else(|| DEFAULT_NETWORK.to_string());
-    validate_network(&network)?;
+    let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
+    validate_network(network)?;
 
     info!("GET /voter/{} - for network: {}", voting_wallet, network);
 
-    let snapshot_slot = get_snapshot_slot(&pool, &network, params.slot).await?;
+    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
 
     // Get vote account summaries
     let vote_accounts = db_operation(
         || {
             VoteAccountRecord::get_summary_by_voting_wallet(
                 &pool,
-                &network,
+                network,
                 &voting_wallet,
                 snapshot_slot,
             )
@@ -176,7 +171,7 @@ async fn get_voter_summary(
         || {
             StakeAccountRecord::get_summary_by_voting_wallet(
                 &pool,
-                &network,
+                network,
                 &voting_wallet,
                 snapshot_slot,
             )
@@ -206,19 +201,19 @@ async fn get_vote_proof(
     Path(vote_account): Path<String>,
     Query(params): Query<VoterQuery>,
 ) -> Result<Json<Value>, StatusCode> {
-    let network = params.network.unwrap_or_else(|| DEFAULT_NETWORK.to_string());
-    validate_network(&network)?;
+    let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
+    validate_network(network)?;
 
     info!(
         "GET /proof/vote_account/{} - for network: {}",
         vote_account, network
     );
 
-    let snapshot_slot = get_snapshot_slot(&pool, &network, params.slot).await?;
+    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
 
     // Get vote account record from database
     let vote_record_option = db_operation(
-        || VoteAccountRecord::get_by_account(&pool, &network, &vote_account, snapshot_slot),
+        || VoteAccountRecord::get_by_account(&pool, network, &vote_account, snapshot_slot),
         "Failed to get vote account record",
     )
     .await?;
@@ -251,19 +246,19 @@ async fn get_stake_proof(
     Path(stake_account): Path<String>,
     Query(params): Query<VoterQuery>,
 ) -> Result<Json<Value>, StatusCode> {
-    let network = params.network.unwrap_or_else(|| "mainnet".to_string());
-    validate_network(&network)?;
+    let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
+    validate_network(network)?;
 
     info!(
         "GET /proof/stake_account/{} - for network: {}",
         stake_account, network
     );
 
-    let snapshot_slot = get_snapshot_slot(&pool, &network, params.slot).await?;
+    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
 
     // Get stake account record from database
     let stake_record_option = db_operation(
-        || StakeAccountRecord::get_by_account(&pool, &network, &stake_account, snapshot_slot),
+        || StakeAccountRecord::get_by_account(&pool, network, &stake_account, snapshot_slot),
         "Failed to get stake account record",
     )
     .await?;
