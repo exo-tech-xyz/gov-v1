@@ -62,7 +62,7 @@ For individual stake accounts not managed by any stake pool program, the system 
 ## Dependencies
 
 1. Clone `jito-tip-router` to parent directory and switch to `6d0d8244314ff7c04625b531f033b770a8c7aafc` commit.
-2. In the cloned repo, modify references of `branch=v2.1-upgrade` (which no longer exists) to `rev=358fbc3c20d947c977a136808f9fbf7f070e478b` in `Cargo.lock` and `Cargo.toml`.
+2. In the cloned repo, modify references of `branch = "v2.1-upgrade"` (which no longer exists) to `rev = "358fbc3c20d947c977a136808f9fbf7f070e478b"` in `Cargo.lock` and `Cargo.toml`.
 3. Ensure system is using Rust Version `1.86.0`, otherwise install with:
 
 ```bash
