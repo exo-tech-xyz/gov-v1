@@ -23,6 +23,11 @@ use upload::handle_upload;
 
 use crate::{middleware::inject_client_ip, utils::validate_network};
 
+// Server configuration constants
+const DEFAULT_BODY_LIMIT_BYTES: usize = 100 * 1024 * 1024; // 100MB for uploads
+const DEFAULT_PORT: u16 = 3000; // override with PORT env var
+const DEFAULT_NETWORK: &str = "mainnet";
+
 // Get the latest snapshot slot if not specified
 async fn get_snapshot_slot(
     pool: &SqlitePool,
@@ -79,6 +84,8 @@ async fn main() -> anyhow::Result<()> {
     // Requests to /upload consume from both global and upload rate limits.
     let upload_router = Router::new()
         .route("/", post(handle_upload))
+        // Apply larger body limit only to upload route
+        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT_BYTES))
         .layer(axum::middleware::from_fn(inject_client_ip))
         .layer(GovernorLayer { config: upload_rl });
 
@@ -92,11 +99,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
         .layer(axum::middleware::from_fn(inject_client_ip))
         .layer(GovernorLayer { config: global_rl })
-        .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB limit for snapshot uploads
         .with_state(pool);
 
     // Run the server
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let port: u16 = std::env::var("PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(DEFAULT_PORT);
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("Server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -119,7 +126,7 @@ async fn get_meta(
     State(pool): State<SqlitePool>,
     Query(params): Query<NetworkQuery>,
 ) -> Result<Json<SnapshotMetaRecord>, StatusCode> {
-    let network = params.network.unwrap_or_else(|| "mainnet".to_string());
+    let network = params.network.unwrap_or_else(|| DEFAULT_NETWORK.to_string());
     validate_network(&network)?;
 
     info!("GET /meta - for network: {}", network);
@@ -143,7 +150,7 @@ async fn get_voter_summary(
     Path(voting_wallet): Path<String>,
     Query(params): Query<VoterQuery>,
 ) -> Result<Json<Value>, StatusCode> {
-    let network = params.network.unwrap_or_else(|| "mainnet".to_string());
+    let network = params.network.unwrap_or_else(|| DEFAULT_NETWORK.to_string());
     validate_network(&network)?;
 
     info!("GET /voter/{} - for network: {}", voting_wallet, network);
@@ -199,7 +206,7 @@ async fn get_vote_proof(
     Path(vote_account): Path<String>,
     Query(params): Query<VoterQuery>,
 ) -> Result<Json<Value>, StatusCode> {
-    let network = params.network.unwrap_or_else(|| "mainnet".to_string());
+    let network = params.network.unwrap_or_else(|| DEFAULT_NETWORK.to_string());
     validate_network(&network)?;
 
     info!(
