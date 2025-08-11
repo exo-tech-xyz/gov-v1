@@ -1,9 +1,8 @@
 mod database;
+mod middleware;
 mod types;
 mod upload;
 mod utils;
-
-use std::net::SocketAddr;
 
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
@@ -15,13 +14,14 @@ use axum::{
 use database::{constants::DEFAULT_DB_PATH, init_pool, models::*, operations::db_operation};
 use serde_json::{json, Value};
 use sqlx::sqlite::SqlitePool;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tracing::info;
 use types::{NetworkQuery, VoterQuery};
 use upload::handle_upload;
 
-use crate::utils::validate_network;
+use crate::{middleware::inject_client_ip, utils::validate_network};
 
 // Get the latest snapshot slot if not specified
 async fn get_snapshot_slot(
@@ -79,6 +79,7 @@ async fn main() -> anyhow::Result<()> {
     // Requests to /upload consume from both global and upload rate limits.
     let upload_router = Router::new()
         .route("/", post(handle_upload))
+        .layer(axum::middleware::from_fn(inject_client_ip))
         .layer(GovernorLayer { config: upload_rl });
 
     // Build application with routes
@@ -89,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/voter/{voting_wallet}", get(get_voter_summary))
         .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
         .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
+        .layer(axum::middleware::from_fn(inject_client_ip))
         .layer(GovernorLayer { config: global_rl })
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB limit for snapshot uploads
         .with_state(pool);
@@ -100,6 +102,7 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(
         listener,
+        // Include soc
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await?;
@@ -107,7 +110,6 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Health check endpoint
 async fn health_check() -> &'static str {
     info!("GET /healthz - Health check requested");
     "ok"

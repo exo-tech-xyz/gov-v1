@@ -1,3 +1,5 @@
+//! Types for HTTP requests and responses
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
