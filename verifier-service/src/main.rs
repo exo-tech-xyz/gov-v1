@@ -17,7 +17,7 @@ use sqlx::sqlite::SqlitePool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tracing::info;
+use tracing::{debug, info};
 use types::{NetworkQuery, VoterQuery};
 use upload::handle_upload;
 
@@ -132,7 +132,7 @@ async fn get_meta(
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
-    info!("GET /meta - for network: {}", network);
+    info!("GET /meta?network={}", network);
 
     let meta_record_option = db_operation(
         || SnapshotMetaRecord::get_latest(&pool, network),
@@ -156,9 +156,8 @@ async fn get_voter_summary(
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
-    info!("GET /voter/{} - for network: {}", voting_wallet, network);
-
     let snapshot_slot = params.slot;
+    info!("GET /voter/{}?network={}&slot={}", voting_wallet, network, snapshot_slot);
 
     // Get vote account summaries
     let vote_accounts = db_operation(
@@ -188,7 +187,7 @@ async fn get_voter_summary(
     )
     .await?;
 
-    info!(
+    debug!(
         "Found {} vote accounts and {} stake accounts for voting wallet {}",
         vote_accounts.len(),
         stake_accounts.len(),
@@ -212,12 +211,11 @@ async fn get_vote_proof(
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
-    info!(
-        "GET /proof/vote_account/{} - for network: {}",
-        vote_account, network
-    );
-
     let snapshot_slot = params.slot;
+    info!(
+        "GET /proof/vote_account/{}?network={}&slot={}",
+        vote_account, network, snapshot_slot
+    );
 
     // Get vote account record from database
     let vote_record_option = db_operation(
@@ -257,12 +255,12 @@ async fn get_stake_proof(
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
-    info!(
-        "GET /proof/stake_account/{} - for network: {}",
-        stake_account, network
-    );
-
     let snapshot_slot = params.slot;
+
+    info!(
+        "GET /proof/stake_account/{}?network={}&slot={}",
+        stake_account, network, snapshot_slot
+    );
 
     // Get stake account record from database
     let stake_record_option = db_operation(
