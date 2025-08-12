@@ -101,11 +101,13 @@ async fn index_snapshot_data(
 
     // Index vote accounts and stake accounts
     for (bundle_idx, bundle) in snapshot.leaf_bundles.iter().enumerate() {
-        info!(
-            "Indexing bundle {} / {}",
-            bundle_idx,
-            snapshot.leaf_bundles.len()
-        );
+        if bundle_idx % 100 == 0 {
+            info!(
+                "Indexing bundle {} / {}",
+                bundle_idx,
+                snapshot.leaf_bundles.len()
+            );
+        }
         let meta_leaf = &bundle.meta_merkle_leaf;
 
         // Convert meta merkle proof to base58 strings
