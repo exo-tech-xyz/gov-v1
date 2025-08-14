@@ -248,7 +248,3 @@ curl -i http://localhost:3000/healthz
 - `rusqlite` - SQLite database interface
 - `serial_test` - Sequential test execution for environment variable isolation
 - `anyhow` - Error handling
-
-```
-
-```
