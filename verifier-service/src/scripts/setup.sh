@@ -1,4 +1,5 @@
-# --- set your values ---
+# 0) Modify environment variables for your server
+# Setup Env
 IMAGE="username/verifier-service:latest" 
 OPERATOR_PUBKEY="C5m2XDwZmjc7yHpy8N4KhQtFJLszasVpfB4c5MTuCsmg" 
 PORT_HOST=80
@@ -6,8 +7,7 @@ PORT_CONTAINER=3000
 DATA_DIR=/srv/verifier/data
 DB_PATH=/data/governance.db
 
-# Optional tuning (defaults shown match service defaults)
-# HTTP rate limits
+# Service Env
 GLOBAL_REFILL_INTERVAL=10
 GLOBAL_RATE_BURST=10
 UPLOAD_REFILL_INTERVAL=60

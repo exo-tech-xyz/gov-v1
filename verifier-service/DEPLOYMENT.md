@@ -37,7 +37,7 @@ ssh -i /path/to/key.pem ubuntu@<EC2_PUBLIC_DNS_OR_IP>
 
 ### 4) Run the Verifier Service in Docker
 
-The repository includes `verifier-service/setup.sh` which installs Docker, prepares the data directory, pulls the image, and starts the container. Set the environment variables in the script, copy it to the server and run it:
+The repository includes `verifier-service/src/scripts/setup.sh` which installs Docker, prepares the data directory, pulls the image, and starts the container. Set the environment variables in the script, copy it to the server and run it.
 
 ### 5) Verify the deployment
 
@@ -75,3 +75,48 @@ Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
 - Configure Cloudflare rate limiting rules for your paths (e.g., /upload, /proof/\*)
 - Optional: restrict EC2 Security Group 80/443 to Cloudflare IP ranges to block direct-to-origin
 - Decide TLS mode (Full Strict recommended) and set up origin TLS (Nginx/ALB) if using HTTPS
+
+### 8) Start the database cleanup cron
+
+This repository includes `verifier-service/src/scripts/cleanup.sh` which installs a cron job that periodically prunes old rows from the SQLite database. Set the environment variables in the script, copy it to the server and run it.
+
+- To check that cron is running and view logs:
+
+```bash
+# Is cron active?
+systemctl is-active cron 2>/dev/null || systemctl is-active crond 2>/dev/null
+
+# Inspect the installed entry
+sudo cat /etc/cron.d/verifier-cleanup
+
+# View cleanup logs (file appears on first cron run)
+sudo tail -n 100 /var/log/verifier-cleanup.log || echo "Log not created yet; trigger a run or wait for the next schedule."
+
+# Follow live once it exists
+sudo tail -f /var/log/verifier-cleanup.log
+
+# Cron service logs (Ubuntu/Debian)
+sudo journalctl -u cron --since "1 hour ago" | tail -n 200
+# Or via syslog
+grep CRON /var/log/syslog | tail -n 200
+```
+
+- To trigger a cleanup immediately (same as cron runs):
+
+```bash
+DB=/srv/verifier/data/governance.db DAYS=60 SLOTS_PER_DAY=216000 /usr/bin/bash /usr/local/bin/verifier-cleanup-sql.sh
+```
+
+- Remove/kill the cleanup cron
+
+```bash
+# Remove the cron entry and reload cron
+sudo rm -f /etc/cron.d/verifier-cleanup
+sudo service cron reload 2>/dev/null || sudo service crond reload 2>/dev/null || true
+
+# (Optional) remove the runner script
+sudo rm -f /usr/local/bin/verifier-cleanup-sql.sh
+
+# If a cleanup is currently running, stop it
+pgrep -fa 'verifier-cleanup-sql.sh|sqlite3' | awk '{print $1}' | xargs -r sudo kill
+```
