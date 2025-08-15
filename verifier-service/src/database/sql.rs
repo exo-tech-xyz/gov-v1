@@ -49,4 +49,7 @@ pub const CREATE_DB_INDEXES: &[&str] = &[
     "CREATE INDEX idx_vote_voting_wallet ON vote_accounts(network, voting_wallet, snapshot_slot)",
     "CREATE INDEX idx_stake_voting_wallet ON stake_accounts(network, voting_wallet, snapshot_slot)",
     "CREATE INDEX idx_snapshot_created_at ON snapshot_meta(network, created_at)",
+    // Covering indexes to satisfy ORDER BY without extra sort
+    "CREATE INDEX idx_vote_voting_wallet_order ON vote_accounts(network, voting_wallet, snapshot_slot, vote_account)",
+    "CREATE INDEX idx_stake_voting_wallet_order ON stake_accounts(network, voting_wallet, snapshot_slot, stake_account)",
 ];

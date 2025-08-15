@@ -51,6 +51,46 @@ TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111 \
 cargo test --bin verifier-service
 ```
 
+## Build and Run Docker (using local binary)
+
+```bash
+# 1) Build the binary locally
+cargo build --release --bin verifier-service
+
+# 2) Build a minimal runtime image (copies the binary only)
+docker build -f verifier-service/Dockerfile -t verifier-service:local .
+
+# 3) Run the container (persists DB to ./data)
+docker run --rm -p 3000:3000 \
+  -e OPERATOR_PUBKEY="$OPERATOR_PUBKEY" \
+  -e RUST_LOG=info \
+  -v $(pwd)/data:/data \
+  verifier-service:local
+
+# 4) Health check
+curl -i http://localhost:3000/healthz
+
+# 5) Publish image to Docker Hub
+docker login # login to docker hub if needed
+docker tag verifier-service:local username/verifier-service:v0.1.0 # set version
+docker tag verifier-service:local username/verifier-service:latest
+docker push username/verifier-service:latest
+
+```
+
+Environment variables:
+
+- OPERATOR_PUBKEY (required)
+- DB_PATH (optional, defaults to /data/governance.db inside container)
+- PORT (optional, defaults to 3000)
+- SQLITE_MAX_CONNECTIONS (optional; default 4 for file DB, 1 for in-memory)
+- UPLOAD_BODY_LIMIT (optional, bytes; default 104857600 = 100MB)
+- GLOBAL_RATE_PER_SECOND, GLOBAL_RATE_BURST (optional; default 10/10)
+- UPLOAD_RATE_PER_SECOND, UPLOAD_RATE_BURST (optional; default 60/2)
+
+<!-- TODO: Add docker-compose for dev convenience -->
+<!-- TODO: Add Docker HEALTHCHECK using /healthz -->
+
 **Note**: Tests use `serial_test` to run sequentially due to shared environment variable usage.
 
 ### Upload a Snapshot
@@ -89,7 +129,7 @@ Example response:
 ### Get Voter Summary
 
 ```bash
-curl -i http://localhost:3000/voter/9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr?network=testnet
+curl -i "http://localhost:3000/voter/9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr?network=testnet&slot=340850340"
 ```
 
 Example response:
@@ -118,7 +158,7 @@ Example response:
 ### Get Vote Proof
 
 ```bash
-curl -i http://localhost:3000/proof/vote_account/1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd?network=testnet&slot=340850340
+curl -i "http://localhost:3000/proof/vote_account/1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd?network=testnet&slot=340850340"
 ```
 
 Example response:
@@ -153,7 +193,7 @@ Example response:
 ### Get Stake Proof
 
 ```bash
-curl -i http://localhost:3000/proof/stake_account/DXmtAZdYsVZT8ir8uPkuY4cgBtsxWpZU4QKdpcAbFngo?network=testnet
+curl -i "http://localhost:3000/proof/stake_account/DXmtAZdYsVZT8ir8uPkuY4cgBtsxWpZU4QKdpcAbFngo?network=testnet&slot=340850340"
 ```
 
 Example response:
@@ -208,7 +248,3 @@ curl -i http://localhost:3000/healthz
 - `rusqlite` - SQLite database interface
 - `serial_test` - Sequential test execution for environment variable isolation
 - `anyhow` - Error handling
-
-```
-
-```

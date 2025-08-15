@@ -10,5 +10,5 @@ pub struct NetworkQuery {
 #[derive(Debug, Deserialize)]
 pub struct VoterQuery {
     pub network: Option<String>,
-    pub slot: Option<u64>,
+    pub slot: u64,
 }

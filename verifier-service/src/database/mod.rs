@@ -4,9 +4,13 @@ pub mod models;
 pub mod operations;
 pub mod sql;
 
+use crate::utils::env_parse;
 use anyhow::Result;
-use sqlx::sqlite::SqlitePool;
-use std::{fs, path::Path};
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
+};
+use sqlx::ConnectOptions;
+use std::{fs, path::Path, str::FromStr};
 use tracing::info;
 
 pub use migrator::run_migrations;
@@ -29,24 +33,30 @@ pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {
         }
     }
 
-    // SQLite URL form for SQLx
-    let db_url = if db_path == ":memory:" {
-        "sqlite::memory:".to_string()
+    // Build connect options and pool options
+    let (url, default_max_connections) = if db_path == ":memory:" {
+        // Shared in-memory DB; keep a single connection for simplicity
+        (
+            "sqlite:file:memdb?mode=memory&cache=shared".to_string(),
+            1u32,
+        )
     } else {
-        format!("sqlite:{}", db_path)
+        (format!("sqlite:{}", db_path), 4u32)
     };
 
-    let pool = SqlitePool::connect(&db_url).await?;
+    let connect_options = SqliteConnectOptions::from_str(&url)?
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .foreign_keys(true)
+        .disable_statement_logging()
+        .pragma("busy_timeout", "5000");
 
-    // Enable pragma settings for better concurrency
-    sqlx::query("PRAGMA foreign_keys = ON")
-        .execute(&pool)
-        .await?;
-    sqlx::query("PRAGMA journal_mode = WAL")
-        .execute(&pool)
-        .await?;
-    sqlx::query("PRAGMA synchronous = NORMAL")
-        .execute(&pool)
+    let max_conns = env_parse::<u32>("SQLITE_MAX_CONNECTIONS", default_max_connections).max(1);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(max_conns)
+        .connect_with(connect_options)
         .await?;
 
     // Run migrations

@@ -17,14 +17,17 @@ use sqlx::sqlite::SqlitePool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tracing::info;
+use tracing::{debug, info};
 use types::{NetworkQuery, VoterQuery};
 use upload::handle_upload;
 
-use crate::{middleware::inject_client_ip, utils::validate_network};
+use crate::{
+    middleware::inject_client_ip,
+    utils::{env_parse, validate_network},
+};
 
 // Server configuration constants
-const DEFAULT_BODY_LIMIT_BYTES: usize = 100 * 1024 * 1024; // 100MB for uploads
+const DEFAULT_BODY_LIMIT: usize = 100 * 1024 * 1024; // 100MB for uploads
 const DEFAULT_PORT: u16 = 3000; // override with PORT env var
 const DEFAULT_NETWORK: &str = "mainnet";
 
@@ -76,12 +79,20 @@ async fn main() -> anyhow::Result<()> {
             )
         };
 
-        let global_rl = rl(10, 10);
-        let upload_rl = rl(60, 2);
+        // Rate limits configurable via environment variables with sane defaults
+        let global_per_second: u64 = env_parse("GLOBAL_REFILL_INTERVAL", 10);
+        let global_burst: u32 = env_parse("GLOBAL_RATE_BURST", 10);
+        let upload_per_second: u64 = env_parse("UPLOAD_REFILL_INTERVAL", 60);
+        let upload_burst: u32 = env_parse("UPLOAD_RATE_BURST", 2);
+
+        let global_rl = rl(global_per_second, global_burst);
+        let upload_rl = rl(upload_per_second, upload_burst);
+
+        let body_limit = env_parse::<u64>("UPLOAD_BODY_LIMIT", DEFAULT_BODY_LIMIT as u64) as usize;
 
         let upload_router = Router::new()
             .route("/", post(handle_upload))
-            .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT_BYTES))
+            .layer(DefaultBodyLimit::max(body_limit))
             .layer(axum::middleware::from_fn(inject_client_ip))
             .layer(GovernorLayer { config: upload_rl });
 
@@ -99,10 +110,7 @@ async fn main() -> anyhow::Result<()> {
     .into_make_service_with_connect_info::<SocketAddr>(); // Include socket address for rate limiting
 
     // Run the server
-    let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(DEFAULT_PORT);
+    let port: u16 = env_parse("PORT", DEFAULT_PORT);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("Server listening on {}", addr);
 
@@ -124,7 +132,7 @@ async fn get_meta(
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
-    info!("GET /meta - for network: {}", network);
+    info!("GET /meta?network={}", network);
 
     let meta_record_option = db_operation(
         || SnapshotMetaRecord::get_latest(&pool, network),
@@ -148,9 +156,8 @@ async fn get_voter_summary(
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
-    info!("GET /voter/{} - for network: {}", voting_wallet, network);
-
-    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
+    let snapshot_slot = params.slot;
+    info!("GET /voter/{}?network={}&slot={}", voting_wallet, network, snapshot_slot);
 
     // Get vote account summaries
     let vote_accounts = db_operation(
@@ -180,7 +187,7 @@ async fn get_voter_summary(
     )
     .await?;
 
-    info!(
+    debug!(
         "Found {} vote accounts and {} stake accounts for voting wallet {}",
         vote_accounts.len(),
         stake_accounts.len(),
@@ -204,12 +211,11 @@ async fn get_vote_proof(
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
+    let snapshot_slot = params.slot;
     info!(
-        "GET /proof/vote_account/{} - for network: {}",
-        vote_account, network
+        "GET /proof/vote_account/{}?network={}&slot={}",
+        vote_account, network, snapshot_slot
     );
-
-    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
 
     // Get vote account record from database
     let vote_record_option = db_operation(
@@ -249,12 +255,12 @@ async fn get_stake_proof(
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
 
-    info!(
-        "GET /proof/stake_account/{} - for network: {}",
-        stake_account, network
-    );
+    let snapshot_slot = params.slot;
 
-    let snapshot_slot = get_snapshot_slot(&pool, network, params.slot).await?;
+    info!(
+        "GET /proof/stake_account/{}?network={}&slot={}",
+        stake_account, network, snapshot_slot
+    );
 
     // Get stake account record from database
     let stake_record_option = db_operation(
