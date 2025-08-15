@@ -37,7 +37,7 @@ ssh -i /path/to/key.pem ubuntu@<EC2_PUBLIC_DNS_OR_IP>
 
 ### 4) Run the Verifier Service in Docker
 
-The repository includes `verifier-service/setup.sh` which installs Docker, prepares the data directory, pulls the image, and starts the container. Set the environment variables in the script, copy it to the server and run it.
+The repository includes `verifier-service/src/scripts/setup.sh` which installs Docker, prepares the data directory, pulls the image, and starts the container. Set the environment variables in the script, copy it to the server and run it.
 
 ### 5) Verify the deployment
 
