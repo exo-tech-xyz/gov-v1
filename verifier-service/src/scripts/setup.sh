@@ -2,6 +2,7 @@
 # Docker Image and Operator Key (MUST CHANGE)
 IMAGE="username/verifier-service:latest" 
 OPERATOR_PUBKEY="C5m2XDwZmjc7yHpy8N4KhQtFJLszasVpfB4c5MTuCsmg" 
+METRICS_AUTH_TOKEN="change-me-please"
 
 # Network and Directories
 PORT_HOST=80
@@ -51,6 +52,7 @@ sudo docker run -d --name verifier --restart unless-stopped \
   -e DB_PATH="${DB_PATH}" \
   -e PORT="${PORT_CONTAINER}" \
   -e RUST_LOG=info \
+  -e METRICS_AUTH_TOKEN="${METRICS_AUTH_TOKEN}" \
   -e GLOBAL_REFILL_INTERVAL="${GLOBAL_REFILL_INTERVAL}" \
   -e GLOBAL_RATE_BURST="${GLOBAL_RATE_BURST}" \
   -e UPLOAD_REFILL_INTERVAL="${UPLOAD_REFILL_INTERVAL}" \

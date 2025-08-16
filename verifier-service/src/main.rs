@@ -7,7 +7,7 @@ mod utils;
 
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
@@ -57,10 +57,11 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Governance Merkle Verifier Service");
 
-    // Check if OPERATOR_PUBKEY is set
+    // Check if OPERATOR_PUBKEY and METRICS_AUTH_TOKEN are set
     let operator_pubkey = std::env::var("OPERATOR_PUBKEY");
-    if operator_pubkey.is_err() {
-        anyhow::bail!("OPERATOR_PUBKEY is not set");
+    let metrics_auth_token = std::env::var("METRICS_AUTH_TOKEN");
+    if operator_pubkey.is_err() || metrics_auth_token.is_err() {
+        anyhow::bail!("OPERATOR_PUBKEY or METRICS_AUTH_TOKEN is not set");
     }
 
     // Initialize database pool (create tables, run migrations)
@@ -132,8 +133,18 @@ async fn health_check() -> &'static str {
     "ok"
 }
 
-async fn admin_stats() -> Json<serde_json::Value> {
-    Json(metrics::snapshot_as_json())
+async fn admin_stats(headers: HeaderMap) -> Result<Json<serde_json::Value>, StatusCode> {
+    let expected = std::env::var("METRICS_AUTH_TOKEN").ok();
+    let provided = headers
+        .get("x-metrics-token")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    match (expected, provided) {
+        (Some(exp), Some(got)) if got == exp => Ok(Json(metrics::snapshot_as_json())),
+        (Some(_), _) => Err(StatusCode::UNAUTHORIZED),
+        (None, _) => Err(StatusCode::SERVICE_UNAVAILABLE),
+    }
 }
 
 async fn get_meta(
