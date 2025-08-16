@@ -1,21 +1,29 @@
 # 0) Modify environment variables for your server
-# Setup Env
+# Docker Image and Operator Key (MUST CHANGE)
 IMAGE="username/verifier-service:latest" 
 OPERATOR_PUBKEY="C5m2XDwZmjc7yHpy8N4KhQtFJLszasVpfB4c5MTuCsmg" 
+
+# Network and Directories
 PORT_HOST=80
 PORT_CONTAINER=3000
 DATA_DIR=/srv/verifier/data
 DB_PATH=/data/governance.db
 
-# Service Env
+# Rate and File Upload Limits
 GLOBAL_REFILL_INTERVAL=10
 GLOBAL_RATE_BURST=10
 UPLOAD_REFILL_INTERVAL=60
 UPLOAD_RATE_BURST=2
 # Upload body size limit (bytes)
 UPLOAD_BODY_LIMIT=$((100 * 1024 * 1024)) # 100MB
+
 # SQLite pool size
 SQLITE_MAX_CONNECTIONS=4
+
+# Docker log rotation
+DOCKER_LOG_DRIVER="json-file"
+DOCKER_LOG_MAX_SIZE="2g"
+DOCKER_LOG_MAX_FILE="5"
 
 # 1) Install Docker
 sudo apt-get update
@@ -35,6 +43,9 @@ sudo docker pull "$IMAGE"
 sudo docker rm -f verifier >/dev/null 2>&1 || true
 
 sudo docker run -d --name verifier --restart unless-stopped \
+  --log-driver ${DOCKER_LOG_DRIVER} \
+  --log-opt max-size=${DOCKER_LOG_MAX_SIZE} \
+  --log-opt max-file=${DOCKER_LOG_MAX_FILE} \
   -p ${PORT_HOST}:${PORT_CONTAINER} \
   -e OPERATOR_PUBKEY="${OPERATOR_PUBKEY}" \
   -e DB_PATH="${DB_PATH}" \
