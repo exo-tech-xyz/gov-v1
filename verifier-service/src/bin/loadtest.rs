@@ -1,7 +1,10 @@
 use rand::{seq::SliceRandom, thread_rng};
 use reqwest::Client;
 use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
-use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 use tokio::time::{interval, MissedTickBehavior};
@@ -9,18 +12,29 @@ use tokio::time::{interval, MissedTickBehavior};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Quick-and-dirty CLI via envs
-    let base_url = std::env::var("BASE_URL").unwrap_or_else(|_| "http://18.224.114.193".to_string());
+    let base_url =
+        std::env::var("BASE_URL").unwrap_or_else(|_| "http://18.224.114.193".to_string());
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "./governance.db".to_string());
     let network = std::env::var("NETWORK").unwrap_or_else(|_| "testnet".to_string());
     let slot: u64 = std::env::var("SLOT")
         .ok()
         .and_then(|v| v.parse().ok())
         .expect("SLOT env is required (u64)");
-    let duration_secs: u64 = std::env::var("DURATION_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(30);
-    let concurrency: usize = std::env::var("CONCURRENCY").ok().and_then(|v| v.parse().ok()).unwrap_or(64);
-    let target_rps: Option<u64> = std::env::var("TARGET_RPS").ok().and_then(|v| v.parse().ok()).filter(|&n| n > 0);
+    let duration_secs: u64 = std::env::var("DURATION_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30);
+    let concurrency: usize = std::env::var("CONCURRENCY")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(64);
+    let target_rps: Option<u64> = std::env::var("TARGET_RPS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|&n| n > 0);
     // Endpoint selection: comma list of voter,vote_proof,stake_proof
-    let endpoints_csv = std::env::var("ENDPOINTS").unwrap_or_else(|_| "voter,vote_proof,stake_proof".to_string());
+    let endpoints_csv =
+        std::env::var("ENDPOINTS").unwrap_or_else(|_| "voter,vote_proof,stake_proof".to_string());
     let mut selected_labels: Vec<String> = Vec::new();
     for part in endpoints_csv.split(',').map(|s| s.trim().to_lowercase()) {
         match part.as_str() {
@@ -51,9 +65,13 @@ async fn main() -> anyhow::Result<()> {
     let mut pick_bag: Vec<usize> = Vec::new();
     for (idx, name) in selected_labels.iter().enumerate() {
         let w = *weights_map.get(name).unwrap_or(&1);
-        for _ in 0..w { pick_bag.push(idx); }
+        for _ in 0..w {
+            pick_bag.push(idx);
+        }
     }
-    if pick_bag.is_empty() { anyhow::bail!("No endpoints to pick from"); }
+    if pick_bag.is_empty() {
+        anyhow::bail!("No endpoints to pick from");
+    }
 
     println!("BASE_URL={}", base_url);
     println!("DB_PATH={}", db_path);
@@ -70,21 +88,29 @@ async fn main() -> anyhow::Result<()> {
 
     // Load IDs from DB
     let pool = SqlitePool::connect(&format!("sqlite:{}", db_path)).await?;
-    let vote_accounts: Vec<String> = sqlx::query("SELECT vote_account FROM vote_accounts LIMIT 5000")
-        .map(|row: SqliteRow| row.get::<String, _>("vote_account"))
-        .fetch_all(&pool)
-        .await?;
-    let stake_accounts: Vec<String> = sqlx::query("SELECT stake_account FROM stake_accounts LIMIT 5000")
-        .map(|row: SqliteRow| row.get::<String, _>("stake_account"))
-        .fetch_all(&pool)
-        .await?;
+    let vote_accounts: Vec<String> =
+        sqlx::query("SELECT vote_account FROM vote_accounts LIMIT 5000")
+            .map(|row: SqliteRow| row.get::<String, _>("vote_account"))
+            .fetch_all(&pool)
+            .await?;
+    let stake_accounts: Vec<String> =
+        sqlx::query("SELECT stake_account FROM stake_accounts LIMIT 5000")
+            .map(|row: SqliteRow| row.get::<String, _>("stake_account"))
+            .fetch_all(&pool)
+            .await?;
     // derive wallets from either table
-    let voting_wallets: Vec<String> = sqlx::query("SELECT DISTINCT voting_wallet FROM vote_accounts LIMIT 5000")
-        .map(|row: SqliteRow| row.get::<String, _>("voting_wallet"))
-        .fetch_all(&pool)
-        .await?;
+    let voting_wallets: Vec<String> =
+        sqlx::query("SELECT DISTINCT voting_wallet FROM vote_accounts LIMIT 5000")
+            .map(|row: SqliteRow| row.get::<String, _>("voting_wallet"))
+            .fetch_all(&pool)
+            .await?;
 
-    println!("Loaded {} vote, {} stake, {} wallets", vote_accounts.len(), stake_accounts.len(), voting_wallets.len());
+    println!(
+        "Loaded {} vote, {} stake, {} wallets",
+        vote_accounts.len(),
+        stake_accounts.len(),
+        voting_wallets.len()
+    );
     if vote_accounts.is_empty() && stake_accounts.is_empty() {
         anyhow::bail!("No accounts found in DB at {}", db_path);
     }
@@ -114,23 +140,50 @@ async fn main() -> anyhow::Result<()> {
         let mut err_per: Vec<u64> = vec![0; labels_for_stats.len()];
         let mut latencies_ms: Vec<u128> = Vec::new();
         while let Some((success, ms, idx)) = rx.recv().await {
-            if success { ok += 1; ok_per[idx] += 1; } else { err += 1; err_per[idx] += 1; }
+            if success {
+                ok += 1;
+                ok_per[idx] += 1;
+            } else {
+                err += 1;
+                err_per[idx] += 1;
+            }
             latencies_ms.push(ms);
         }
         latencies_ms.sort_unstable();
         let p = |q: f64| -> u128 {
-            if latencies_ms.is_empty() { return 0; }
+            if latencies_ms.is_empty() {
+                return 0;
+            }
             let idx = ((latencies_ms.len() as f64 - 1.0) * q).round() as usize;
             latencies_ms[idx]
         };
         let completed = ok + err;
         let issued_total = issued_for_stats.load(Ordering::Relaxed);
         let elapsed = start_at.elapsed().as_secs_f64();
-        let qps = if elapsed > 0.0 { completed as f64 / elapsed } else { 0.0 };
-        println!("Summary: issued={} completed={} ok={} err={} p50={}ms p90={}ms p99={}ms qps={:.1}",
-            issued_total, completed, ok, err, p(0.50), p(0.90), p(0.99), qps);
+        let qps = if elapsed > 0.0 {
+            completed as f64 / elapsed
+        } else {
+            0.0
+        };
+        println!(
+            "Summary: issued={} completed={} ok={} err={} p50={}ms p90={}ms p99={}ms qps={:.1}",
+            issued_total,
+            completed,
+            ok,
+            err,
+            p(0.50),
+            p(0.90),
+            p(0.99),
+            qps
+        );
         for (i, name) in labels_for_stats.iter().enumerate() {
-            println!("  {}: ok={} err={} total={}", name, ok_per[i], err_per[i], ok_per[i] + err_per[i]);
+            println!(
+                "  {}: ok={} err={} total={}",
+                name,
+                ok_per[i],
+                err_per[i],
+                ok_per[i] + err_per[i]
+            );
         }
     });
 
@@ -147,21 +200,36 @@ async fn main() -> anyhow::Result<()> {
             let name = selected_labels[idx].as_str();
             let (url, label_idx) = match name {
                 "voter" => {
-                    if voting_wallets.is_empty() { continue; }
+                    if voting_wallets.is_empty() {
+                        continue;
+                    }
                     let wallet = voting_wallets.choose(&mut rng).unwrap();
-                    let url = format!("{}/voter/{}?network={}&slot={}", base_url, wallet, network, slot);
+                    let url = format!(
+                        "{}/voter/{}?network={}&slot={}",
+                        base_url, wallet, network, slot
+                    );
                     (url, idx)
                 }
                 "vote_proof" => {
-                    if vote_accounts.is_empty() { continue; }
+                    if vote_accounts.is_empty() {
+                        continue;
+                    }
                     let acc = vote_accounts.choose(&mut rng).unwrap();
-                    let url = format!("{}/proof/vote_account/{}?network={}&slot={}", base_url, acc, network, slot);
+                    let url = format!(
+                        "{}/proof/vote_account/{}?network={}&slot={}",
+                        base_url, acc, network, slot
+                    );
                     (url, idx)
                 }
                 _ => {
-                    if stake_accounts.is_empty() { continue; }
+                    if stake_accounts.is_empty() {
+                        continue;
+                    }
                     let acc = stake_accounts.choose(&mut rng).unwrap();
-                    let url = format!("{}/proof/stake_account/{}?network={}&slot={}", base_url, acc, network, slot);
+                    let url = format!(
+                        "{}/proof/stake_account/{}?network={}&slot={}",
+                        base_url, acc, network, slot
+                    );
                     (url, idx)
                 }
             };
@@ -196,20 +264,38 @@ async fn main() -> anyhow::Result<()> {
             let name = selected_labels[idx].as_str();
             let (url, label_idx) = match name {
                 "voter" => {
-                    if voting_wallets.is_empty() { continue; }
+                    if voting_wallets.is_empty() {
+                        continue;
+                    }
                     let wallet = voting_wallets.choose(&mut rng).unwrap();
-                    (format!("{}/voter/{}?network={}&slot={}", base_url, wallet, network, slot), idx)
+                    (
+                        format!(
+                            "{}/voter/{}?network={}&slot={}",
+                            base_url, wallet, network, slot
+                        ),
+                        idx,
+                    )
                 }
                 "vote_proof" => {
-                    if vote_accounts.is_empty() { continue; }
+                    if vote_accounts.is_empty() {
+                        continue;
+                    }
                     let acc = vote_accounts.choose(&mut rng).unwrap();
-                    let url = format!("{}/proof/vote_account/{}?network={}&slot={}", base_url, acc, network, slot);
+                    let url = format!(
+                        "{}/proof/vote_account/{}?network={}&slot={}",
+                        base_url, acc, network, slot
+                    );
                     (url, idx)
                 }
                 _ => {
-                    if stake_accounts.is_empty() { continue; }
+                    if stake_accounts.is_empty() {
+                        continue;
+                    }
                     let acc = stake_accounts.choose(&mut rng).unwrap();
-                    let url = format!("{}/proof/stake_account/{}?network={}&slot={}", base_url, acc, network, slot);
+                    let url = format!(
+                        "{}/proof/stake_account/{}?network={}&slot={}",
+                        base_url, acc, network, slot
+                    );
                     (url, idx)
                 }
             };
@@ -250,4 +336,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-
