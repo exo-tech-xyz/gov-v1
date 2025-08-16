@@ -7,6 +7,7 @@ A self-contained Rust web service for serving Merkle proofs and leaf nodes for S
 ```bash
 # Set the operator public key for signature verification (replace with your own)
 export OPERATOR_PUBKEY="C5m2XDwZmjc7yHpy8N4KhQtFJLszasVpfB4c5MTuCsmg"
+export METRICS_AUTH_TOKEN="change-me-please"
 
 # Run the service
 RUST_LOG=info cargo run --bin verifier-service
@@ -28,6 +29,7 @@ DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
 - `GET /voter/:voting_wallet` - Get vote and stake account summaries
 - `GET /proof/vote_account/:vote_account` - Get Merkle proof for vote account
 - `GET /proof/stake_account/:stake_account` - Get Merkle proof for stake account
+- `GET /admin/stats` - Admin metrics (requires header `X-Metrics-Token`)
 
 ## Security
 
@@ -38,6 +40,19 @@ The `/upload` endpoint requires Ed25519 signature verification to prevent unauth
 - **Environment Variable**: Set `OPERATOR_PUBKEY` to the base58-encoded public key of the authorized operator
 - **Message Format**: Signatures are verified over `slot.to_le_bytes() || merkle_root_bs58_string.as_bytes()`
 - **Signature Format**: Base58-encoded Ed25519 signature
+
+### Admin Endpoint Authentication
+
+- The `/admin/stats` endpoint is protected by a static token to prevent unauthenticated access.
+- Set `METRICS_AUTH_TOKEN` in the environment to enable it.
+- Clients must include header `X-Metrics-Token: <token>`.
+- If `METRICS_AUTH_TOKEN` is unset, the endpoint returns `503 Service Unavailable`.
+
+Example:
+
+```bash
+curl -H "X-Metrics-Token: $METRICS_AUTH_TOKEN" http://localhost:3000/admin/stats
+```
 
 ## Testing
 

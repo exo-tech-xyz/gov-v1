@@ -16,6 +16,7 @@ use sqlx::sqlite::SqlitePool;
 use tracing::{debug, info};
 
 use crate::database::models::{SnapshotMetaRecord, StakeAccountRecord, VoteAccountRecord};
+use crate::metrics;
 use crate::utils::validate_network;
 
 /// Handle POST /upload endpoint
@@ -29,15 +30,20 @@ pub async fn handle_upload(
     let (slot, network, merkle_root, signature) =
         extract_metadata_only(&mut multipart).await.map_err(|e| {
             info!("Failed to extract metadata: {}", e);
+            metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
             StatusCode::BAD_REQUEST
         })?;
 
     // 2. Validate network is supported
-    validate_network(&network)?;
+    if let Err(e) = validate_network(&network) {
+        metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
+        return Err(e);
+    }
 
     // 3: Verify signature over slot || merkle_root_bs58_bytes
     verify_signature(&slot, &merkle_root, &signature).map_err(|e| {
         info!("Signature verification failed: {}", e);
+        metrics::record_upload_outcome(metrics::UploadOutcome::Unauthorized);
         StatusCode::UNAUTHORIZED
     })?;
     info!(
@@ -48,6 +54,7 @@ pub async fn handle_upload(
     // 4. Load the file.
     let file_data = extract_remaining_file(&mut multipart).await.map_err(|e| {
         info!("Failed to extract file: {}", e);
+        metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
         StatusCode::BAD_REQUEST
     })?;
     info!(
@@ -59,10 +66,12 @@ pub async fn handle_upload(
     let snapshot_hash = bs58::encode(hash(&file_data)).into_string();
     let snapshot = MetaMerkleSnapshot::read_from_bytes(file_data, true).map_err(|e| {
         info!("Failed to read snapshot: {}", e);
+        metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
         StatusCode::BAD_REQUEST
     })?;
     if bs58::encode(snapshot.root).into_string() != merkle_root || snapshot.slot != slot {
         info!("Merkle root or slot in snapshot mismatch");
+        metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -71,8 +80,11 @@ pub async fn handle_upload(
         .await
         .map_err(|e| {
             info!("Failed to index snapshot data: {}", e);
+            metrics::record_upload_outcome(metrics::UploadOutcome::Internal);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+
+    metrics::record_upload_outcome(metrics::UploadOutcome::Success);
 
     Ok(Json(json!({
         "status": "success",

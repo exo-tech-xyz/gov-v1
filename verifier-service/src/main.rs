@@ -1,4 +1,5 @@
 mod database;
+mod metrics;
 mod middleware;
 mod types;
 mod upload;
@@ -6,7 +7,7 @@ mod utils;
 
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Json,
     routing::{get, post},
     Router,
@@ -17,7 +18,8 @@ use sqlx::sqlite::SqlitePool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tracing::{debug, info};
+use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+use tracing::{debug, info, Level};
 use types::{NetworkQuery, VoterQuery};
 use upload::handle_upload;
 
@@ -55,10 +57,11 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Governance Merkle Verifier Service");
 
-    // Check if OPERATOR_PUBKEY is set
+    // Check if OPERATOR_PUBKEY and METRICS_AUTH_TOKEN are set
     let operator_pubkey = std::env::var("OPERATOR_PUBKEY");
-    if operator_pubkey.is_err() {
-        anyhow::bail!("OPERATOR_PUBKEY is not set");
+    let metrics_auth_token = std::env::var("METRICS_AUTH_TOKEN");
+    if operator_pubkey.is_err() || metrics_auth_token.is_err() {
+        anyhow::bail!("OPERATOR_PUBKEY or METRICS_AUTH_TOKEN is not set");
     }
 
     // Initialize database pool (create tables, run migrations)
@@ -99,11 +102,17 @@ async fn main() -> anyhow::Result<()> {
         Router::new()
             .route("/healthz", get(health_check))
             .route("/meta", get(get_meta))
+            .route("/admin/stats", get(admin_stats))
             .nest("/upload", upload_router)
             .route("/voter/{voting_wallet}", get(get_voter_summary))
             .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
             .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
             .layer(axum::middleware::from_fn(inject_client_ip))
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                    .on_response(DefaultOnResponse::new().level(Level::INFO)),
+            )
             .layer(GovernorLayer { config: global_rl })
             .with_state(pool.clone())
     }
@@ -121,8 +130,21 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn health_check() -> &'static str {
-    info!("GET /healthz - Health check requested");
     "ok"
+}
+
+async fn admin_stats(headers: HeaderMap) -> Result<Json<serde_json::Value>, StatusCode> {
+    let expected = std::env::var("METRICS_AUTH_TOKEN").ok();
+    let provided = headers
+        .get("x-metrics-token")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    match (expected, provided) {
+        (Some(exp), Some(got)) if got == exp => Ok(Json(metrics::snapshot_as_json())),
+        (Some(_), _) => Err(StatusCode::UNAUTHORIZED),
+        (None, _) => Err(StatusCode::SERVICE_UNAVAILABLE),
+    }
 }
 
 async fn get_meta(
@@ -131,8 +153,6 @@ async fn get_meta(
 ) -> Result<Json<SnapshotMetaRecord>, StatusCode> {
     let network = params.network.as_deref().unwrap_or(DEFAULT_NETWORK);
     validate_network(network)?;
-
-    info!("GET /meta?network={}", network);
 
     let meta_record_option = db_operation(
         || SnapshotMetaRecord::get_latest(&pool, network),
@@ -157,7 +177,6 @@ async fn get_voter_summary(
     validate_network(network)?;
 
     let snapshot_slot = params.slot;
-    info!("GET /voter/{}?network={}&slot={}", voting_wallet, network, snapshot_slot);
 
     // Get vote account summaries
     let vote_accounts = db_operation(
@@ -212,10 +231,6 @@ async fn get_vote_proof(
     validate_network(network)?;
 
     let snapshot_slot = params.slot;
-    info!(
-        "GET /proof/vote_account/{}?network={}&slot={}",
-        vote_account, network, snapshot_slot
-    );
 
     // Get vote account record from database
     let vote_record_option = db_operation(
@@ -243,6 +258,7 @@ async fn get_vote_proof(
             "Vote account {} not found for network {} at slot {}",
             vote_account, network, snapshot_slot
         );
+        metrics::record_proofs_not_found(metrics::ProofKind::Vote);
         Err(StatusCode::NOT_FOUND)
     }
 }
@@ -256,11 +272,6 @@ async fn get_stake_proof(
     validate_network(network)?;
 
     let snapshot_slot = params.slot;
-
-    info!(
-        "GET /proof/stake_account/{}?network={}&slot={}",
-        stake_account, network, snapshot_slot
-    );
 
     // Get stake account record from database
     let stake_record_option = db_operation(
@@ -288,6 +299,7 @@ async fn get_stake_proof(
             "Stake account {} not found for network {} at slot {}",
             stake_account, network, snapshot_slot
         );
+        metrics::record_proofs_not_found(metrics::ProofKind::Stake);
         Err(StatusCode::NOT_FOUND)
     }
 }
