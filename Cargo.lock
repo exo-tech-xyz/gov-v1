@@ -11630,6 +11630,7 @@ dependencies = [
  "gov-v1",
  "log",
  "meta-merkle-tree",
+ "once_cell",
  "rand 0.8.5",
  "reqwest 0.12.15",
  "serde",
