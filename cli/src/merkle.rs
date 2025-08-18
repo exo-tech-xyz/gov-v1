@@ -28,7 +28,10 @@ impl MetaMerkleSnapshot {
         Ok(())
     }
 
-    pub fn read_from_bytes_with_hash(buf: Vec<u8>, is_compressed: bool) -> io::Result<(Self, Hash)> {
+    pub fn read_from_bytes_with_hash(
+        buf: Vec<u8>,
+        is_compressed: bool,
+    ) -> io::Result<(Self, Hash)> {
         let decompressed_buf = if is_compressed {
             let mut decoder = GzDecoder::new(&buf[..]);
             let mut decompressed = Vec::new();
