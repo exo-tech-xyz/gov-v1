@@ -6198,6 +6198,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "once_cell",
  "percent-encoding 2.3.1",
  "pin-project-lite",
