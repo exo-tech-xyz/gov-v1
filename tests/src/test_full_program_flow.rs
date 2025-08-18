@@ -647,11 +647,11 @@ fn main() {
     let operator_keypairs: Vec<Keypair> = (0..10).map(|_| Keypair::new()).collect();
 
     let path = format!(
-        "{}/src/fixtures/meta_merkle.bin",
+        "{}/src/fixtures/meta_merkle_340850340.zip",
         env!("CARGO_MANIFEST_DIR")
     );
     println!("path {}", path);
-    let meta_merkle_snapshot = MetaMerkleSnapshot::read(path.into(), false).unwrap();
+    let meta_merkle_snapshot = MetaMerkleSnapshot::read(path.into(), true).unwrap();
 
     let context = ProgramTestContext {
         payer: payer.insecure_clone(),

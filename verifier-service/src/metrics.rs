@@ -93,9 +93,10 @@ pub fn snapshot_as_json() -> serde_json::Value {
 
 fn storage_db_info() -> (String, Option<u64>) {
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
-    let db_bytes = std::fs::metadata(&db_path)
-        .ok()
-        .and_then(|m| if m.is_file() { Some(m.len()) } else { None });
+    let db_bytes =
+        std::fs::metadata(&db_path)
+            .ok()
+            .and_then(|m| if m.is_file() { Some(m.len()) } else { None });
 
     (db_path, db_bytes)
 }
@@ -113,15 +114,12 @@ fn filesystem_free_mb_from_db_path(db_path: &str) -> Option<f64> {
     use sysinfo::Disks;
     let disks = Disks::new_with_refreshed_list();
     let path = std::path::Path::new(db_path);
-    let mount = path
-        .canonicalize()
-        .ok()
-        .and_then(|p| {
-            disks
-                .iter()
-                .filter(|d| p.starts_with(d.mount_point()))
-                .max_by_key(|d| d.mount_point().as_os_str().len())
-        });
+    let mount = path.canonicalize().ok().and_then(|p| {
+        disks
+            .iter()
+            .filter(|d| p.starts_with(d.mount_point()))
+            .max_by_key(|d| d.mount_point().as_os_str().len())
+    });
 
     if let Some(d) = mount {
         let available = bytes_to_mb(d.available_space());

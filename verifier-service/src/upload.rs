@@ -63,12 +63,14 @@ pub async fn handle_upload(
     );
 
     // 5. Parse snapshot file, verify merkle_root and slot from request fields.
-    let snapshot_hash = bs58::encode(hash(&file_data)).into_string();
-    let snapshot = MetaMerkleSnapshot::read_from_bytes(file_data, true).map_err(|e| {
-        info!("Failed to read snapshot: {}", e);
-        metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
-        StatusCode::BAD_REQUEST
-    })?;
+    let (snapshot, snapshot_hash) = MetaMerkleSnapshot::read_from_bytes_with_hash(file_data, true)
+        .map_err(|e| {
+            info!("Failed to read snapshot: {}", e);
+            metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
+            StatusCode::BAD_REQUEST
+        })?;
+    let encoded_hash = bs58::encode(snapshot_hash).into_string();
+
     if bs58::encode(snapshot.root).into_string() != merkle_root || snapshot.slot != slot {
         info!("Merkle root or slot in snapshot mismatch");
         metrics::record_upload_outcome(metrics::UploadOutcome::BadRequest);
@@ -76,7 +78,7 @@ pub async fn handle_upload(
     }
 
     // 6. Index data in database
-    index_snapshot_data(&pool, &snapshot, &network, &merkle_root, &snapshot_hash)
+    index_snapshot_data(&pool, &snapshot, &network, &merkle_root, &encoded_hash)
         .await
         .map_err(|e| {
             info!("Failed to index snapshot data: {}", e);
