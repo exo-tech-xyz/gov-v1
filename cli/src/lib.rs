@@ -18,9 +18,20 @@ use solana_runtime::{bank::Bank, stakes::StakeAccount};
 use solana_sdk::account::from_account;
 use solana_sdk::account::AccountSharedData;
 use solana_sdk::account::ReadableAccount;
+use solana_sdk::vote::state::VoteStateVersions;
 use spl_stake_pool::state::AccountType;
 use spl_stake_pool::state::StakePool;
 use std::sync::Arc;
+use solana_program::vote::state::VoteState;
+
+fn get_vote_withdrawer(bank: &solana_runtime::bank::Bank, vote_account: &Pubkey) -> Option<Pubkey> {
+    let account = bank.get_account(vote_account)?;
+    if account.owner() != &solana_program::vote::program::id() {
+        return None;
+    }
+    let vote_state = VoteState::deserialize(&mut &account.data()[..]).ok()?;
+    Some(vote_state.authorized_withdrawer)
+}
 
 /// Given an [EpochStakes] object, return delegations grouped by voter_pubkey (validator delegated to).
 /// Delegations store the active stake of the delegator.
@@ -120,30 +131,21 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
 
     let l_stakes = bank.stakes_cache.stakes();
     let delegations = l_stakes.stake_delegations();
-    let epoch_vote_accounts = bank.epoch_vote_accounts(bank.epoch()).unwrap_or_else(|| {
-        panic!(
-            "No epoch_vote_accounts found for slot {} at epoch {}",
-            bank.slot(),
-            bank.epoch()
-        )
-    });
-    println!("Vote Accounts Count: {}", epoch_vote_accounts.len());
     let voter_pubkey_to_delegations =
         group_delegations_by_voter_pubkey_active_stake(delegations, bank)
             .into_iter()
             .collect::<HashMap<_, _>>();
 
+    let mut vote_accounts_count = 0;
+    let mut stake_account_count = 0;
+
     // 1. Generate leaf nodes for MetaMerkleTree.
     let (meta_merkle_leaves, stake_merkle_leaves_collection) = voter_pubkey_to_delegations
         .iter()
         .filter_map(|(voter_pubkey, delegations)| {
-            let (vote_account_stake, vote_account) =
-                epoch_vote_accounts.get(voter_pubkey).or_else(|| {
-                    // Vote account may be missing from epoch_vote_accounts if the validator is not active,
-                    // despite having delegated stake.
-                    eprintln!("Missing {} from epoch_vote_accounts", voter_pubkey);
-                    None
-                })?;
+            // Track total stake delegated to this vote account across all stake accounts.
+            // We use this instead of value from epoch_vote_accounts rather than bank.epoch_vote_accounts to ensure consistency.
+            let mut vote_account_stake = 0;
 
             // 1. Create leaf nodes for StakeMerkleTree.
             let mut stake_merkle_leaves = delegations
@@ -161,6 +163,8 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
                         );
                     }
 
+                    vote_account_stake += delegation.lamports_delegated;
+                    stake_account_count += 1;
                     StakeMerkleLeaf {
                         voting_wallet,
                         stake_account: delegation.stake_account_pubkey,
@@ -179,13 +183,20 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
                 .collect();
             let stake_merkle = MerkleTree::new(&hashed_nodes[..], true);
 
+            let voting_wallet = get_vote_withdrawer(bank, voter_pubkey);
+            if voting_wallet.is_none() {
+                println!("Missing vote account {}, setting voting wallet to default", voter_pubkey);
+            }
+
             // 4. Build MetaMerkleLeaf using root node of StakeMerkleTree.
             let meta_merkle_leaf = MetaMerkleLeaf {
                 vote_account: *voter_pubkey,
-                voting_wallet: vote_account.vote_state().authorized_withdrawer,
+                voting_wallet: voting_wallet.unwrap_or_default(),
                 stake_merkle_root: stake_merkle.get_root().unwrap().to_bytes(),
-                active_stake: *vote_account_stake,
+                active_stake: vote_account_stake,
             };
+
+            vote_accounts_count += 1;
 
             Some((meta_merkle_leaf, stake_merkle_leaves))
         })
@@ -220,6 +231,9 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
             },
         )
         .collect();
+
+    println!("Vote Accounts Count: {}", vote_accounts_count);
+    println!("Stake Accounts Count: {}", stake_account_count);
 
     Ok(MetaMerkleSnapshot {
         root: meta_merkle.get_root().unwrap().to_bytes(),
