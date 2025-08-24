@@ -421,6 +421,8 @@ fn main() -> Result<()> {
             slot,
             ref save_path,
         } => {
+            // Start timer
+            let start_time = std::time::Instant::now();
             let SnapshotPaths {
                 ledger_path,
                 account_paths,
@@ -444,6 +446,11 @@ fn main() -> Result<()> {
 
             let file_path = PathBuf::from(save_path).join(format!("meta_merkle-{}.zip", slot));
             meta_merkle_snapshot.save_compressed(file_path)?;
+
+            // Stop timer
+            let end_time = std::time::Instant::now();
+            let duration = end_time.duration_since(start_time);
+            info!("Time taken: {:?}", duration);
         }
         Commands::LogMetaMerkleHash {
             read_path,

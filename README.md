@@ -142,7 +142,18 @@ RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn ca
 # Generates MetaMerkleSnapshot from the Solana ledger snapshot and stores at save path.
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
 
-# Log Merkle root, hash, and operator signature from snapshot file
+# Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config.
+TMPDIR=/mnt/nvme2/solana/tmp \
+RUSTFLAGS="-C target-cpu=native" \
+RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
+cargo run --release --bin cli -- \
+  --ledger-path test-ledger \
+  --full-snapshots-path test-ledger/backup-snapshots \
+  --backup-snapshots-dir test-ledger/backup-snapshots \
+  generate-meta-merkle --slot 361319354
+
+# Log Merkle root, hash,' and operator signature from snapshot file
 RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-340850340.zip --is-compressed
 ```
 
