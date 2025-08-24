@@ -195,9 +195,12 @@ async fn e2e_binary_endpoints() -> anyhow::Result<()> {
     assert!(uploads[0].get("count").unwrap().as_u64() >= Some(1));
 
     // proofs_not_found_total should be empty
-    let not_found = stats_ok.get("proofs_not_found_total").unwrap().as_array().unwrap();
+    let not_found = stats_ok
+        .get("proofs_not_found_total")
+        .unwrap()
+        .as_array()
+        .unwrap();
     assert!(not_found.is_empty());
-
 
     Ok(())
 }

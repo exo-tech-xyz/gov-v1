@@ -13,16 +13,16 @@ use itertools::Itertools;
 use meta_merkle_tree::{
     generated_merkle_tree::Delegation, merkle_tree::MerkleTree, utils::get_proof,
 };
+use solana_program::vote::state::VoteState;
 use solana_program::{pubkey::Pubkey, stake_history::StakeHistory, sysvar};
 use solana_runtime::{bank::Bank, stakes::StakeAccount};
 use solana_sdk::account::from_account;
 use solana_sdk::account::AccountSharedData;
 use solana_sdk::account::ReadableAccount;
-use solana_sdk::vote::state::VoteStateVersions;
+use spl_stake_pool::find_withdraw_authority_program_address;
 use spl_stake_pool::state::AccountType;
 use spl_stake_pool::state::StakePool;
 use std::sync::Arc;
-use solana_program::vote::state::VoteState;
 
 fn get_vote_withdrawer(bank: &solana_runtime::bank::Bank, vote_account: &Pubkey) -> Option<Pubkey> {
     let account = bank.get_account(vote_account)?;
@@ -82,6 +82,7 @@ fn group_delegations_by_voter_pubkey_active_stake(
 fn update_stake_pool_voter_map(
     stake_pool_voter_map: &mut HashMap<Pubkey, Pubkey>,
     account: &AccountSharedData,
+    stake_pool_pubkey: &Pubkey,
 ) {
     if account.owner() != &spl_stake_pool::id() {
         return;
@@ -94,14 +95,13 @@ fn update_stake_pool_voter_map(
     }
 
     if let Ok(stake_pool) = StakePool::deserialize(&mut &account.data()[..]) {
-        if let Some(withdraw_authority) = stake_pool.sol_withdraw_authority {
-            // Sanity check: ensure the manager is not the default/zero pubkey
-            if stake_pool.manager == Pubkey::default() {
-                return;
-            }
-
-            stake_pool_voter_map.insert(withdraw_authority, stake_pool.manager);
+        let (withdraw_authority, _) =
+            find_withdraw_authority_program_address(&spl_stake_pool::id(), stake_pool_pubkey);
+        if stake_pool.manager == Pubkey::default() {
+            return;
         }
+
+        stake_pool_voter_map.insert(withdraw_authority, stake_pool.manager);
     }
 }
 
@@ -122,7 +122,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
     bank.scan_all_accounts(
         |item| {
             if let Some((_pubkey, account, _slot)) = item {
-                update_stake_pool_voter_map(&mut stake_pool_voter_map, &account);
+                update_stake_pool_voter_map(&mut stake_pool_voter_map, &account, &_pubkey);
             }
         },
         false,
@@ -185,7 +185,10 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
 
             let voting_wallet = get_vote_withdrawer(bank, voter_pubkey);
             if voting_wallet.is_none() {
-                println!("Missing vote account {}, setting voting wallet to default", voter_pubkey);
+                println!(
+                    "Missing vote account {}, setting voting wallet to default",
+                    voter_pubkey
+                );
             }
 
             // 4. Build MetaMerkleLeaf using root node of StakeMerkleTree.
