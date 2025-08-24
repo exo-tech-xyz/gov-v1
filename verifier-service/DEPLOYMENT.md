@@ -76,6 +76,26 @@ Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
 - Optional: restrict EC2 Security Group 80/443 to Cloudflare IP ranges to block direct-to-origin
 - Decide TLS mode (Full Strict recommended) and set up origin TLS (Nginx/ALB) if using HTTPS
 
+The following steps are intended for a deployment of the verifier service when
+there are no existing domains or Cloudflare setup using HTTP connection.
+
+1. Create a new Cloudflare account
+2. Purchase a domain name
+3. Connect a new domain to Cloudflare
+4. Add a new DNS record to Cloudflare
+
+```
+Type: A
+Name: api
+Content: 18.222.222.232 (IP from EC2)
+Proxy status: Proxied (orange cloud ON) ✅
+TTL: Auto
+```
+
+5. Replace current nameserver with Cloudflare nameserver
+6. In SSL/TLS Overview, set mode to Flexible.
+7. In Security -> Security Rules, create new Rate Limiting Rule for each API path. Note that the free tier only allows 1 rule, with granularity of requests per 10s, and blocking duration of 10s.
+
 ### 8) Start the database cleanup cron
 
 This repository includes `verifier-service/src/scripts/cleanup.sh` which installs a cron job that periodically prunes old rows from the SQLite database. Set the environment variables in the script, copy it to the server and run it.
