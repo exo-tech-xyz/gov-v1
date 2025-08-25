@@ -144,7 +144,6 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
         .iter()
         .filter_map(|(voter_pubkey, delegations)| {
             // Track total stake delegated to this vote account across all stake accounts.
-            // We use this instead of value from epoch_vote_accounts rather than bank.epoch_vote_accounts to ensure consistency.
             let mut vote_account_stake = 0;
 
             // 1. Create leaf nodes for StakeMerkleTree.
@@ -157,10 +156,6 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
                     // mapped to a different wallet. Otherwise, use the withdrawer authority.
                     if let Some(manager) = stake_pool_voter_map.get(&delegation.withdrawer_pubkey) {
                         voting_wallet = *manager;
-                        println!(
-                            "Using stake pool manager {} for stake account {}",
-                            voting_wallet, delegation.stake_account_pubkey
-                        );
                     }
 
                     vote_account_stake += delegation.lamports_delegated;

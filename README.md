@@ -13,6 +13,9 @@ This repo contains:
 
 - [Project Structure](#project-structure)
 - [Stake Pool Handling](#stake-pool-handling)
+- [Vote Account](#vote-account)
+  - [Stake Calculation](#stake-calculation)
+  - [Missing Vote Account](#missing-vote-account)
 - [Testing](#testing)
 - [CLI Usage](#cli-usage-via-cargo-run)
   - [Program Setup](#program-setup-after-deployment)
@@ -56,6 +59,18 @@ For **Sanctum Pools**, since stake is either delegated to a single validator per
 ### Individual Stake Accounts
 
 For individual stake accounts not managed by any stake pool program, the system uses the withdraw authority directly as the voting wallet, allowing individual stakers to participate in governance.
+
+---
+
+## Vote Account
+
+### Stake Calculation
+
+Vote account effective stake is calculated by summing the individual active stake accounts delegated to the vote account that reads from the Bank's StakesCache. This bottom up approach differs from using the value record in Bank's `epoch_stakes` computed at epoch boundary.
+
+### Missing Vote Account
+
+If a vote account delegated to is missing (closed by the manager), the system will set the voting wallet to the default address `11111111111111111111111111111111`. This implies that the delegators can continue to vote, but the vote account will not be able to vote.
 
 ---
 
@@ -139,10 +154,12 @@ RUST_LOG=info cargo run --bin cli -- \
 # and stores at snapshot path.
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 340850340
 
+# (DEV MODE - Use Release Mode for production snapshots)
 # Generates MetaMerkleSnapshot from the Solana ledger snapshot and stores at save path.
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
 
-# Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config.
+# (RELEASE MODE)
+# Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (linux)
 TMPDIR=/mnt/nvme2/solana/tmp \
 RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
@@ -152,6 +169,18 @@ cargo run --release --bin cli -- \
   --full-snapshots-path test-ledger/backup-snapshots \
   --backup-snapshots-dir test-ledger/backup-snapshots \
   generate-meta-merkle --slot 361319354
+
+# (RELEASE MODE)
+# Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (macos)
+TMPDIR=/tmp \
+RUSTFLAGS="-C target-cpu=native" \
+RAYON_NUM_THREADS=$(sysctl -n hw.ncpu) ZSTD_NBTHREADS=$(sysctl -n hw.ncpu) \
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
+cargo run --release --bin cli -- \
+  --ledger-path test-ledger \
+  --full-snapshots-path test-ledger/backup-snapshots \
+  --backup-snapshots-dir test-ledger/backup-snapshots \
+  generate-meta-merkle --slot 340850340
 
 # Log Merkle root, hash,' and operator signature from snapshot file
 RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-340850340.zip --is-compressed
