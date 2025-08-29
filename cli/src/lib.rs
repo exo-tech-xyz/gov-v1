@@ -24,13 +24,13 @@ use spl_stake_pool::state::AccountType;
 use spl_stake_pool::state::StakePool;
 use std::sync::Arc;
 
-fn get_vote_withdrawer(bank: &solana_runtime::bank::Bank, vote_account: &Pubkey) -> Option<Pubkey> {
+fn get_validator_identity(bank: &solana_runtime::bank::Bank, vote_account: &Pubkey) -> Option<Pubkey> {
     let account = bank.get_account(vote_account)?;
     if account.owner() != &solana_program::vote::program::id() {
         return None;
     }
     let vote_state = VoteState::deserialize(&mut &account.data()[..]).ok()?;
-    Some(vote_state.authorized_withdrawer)
+    Some(vote_state.node_pubkey)
 }
 
 /// Given an [EpochStakes] object, return delegations grouped by voter_pubkey (validator delegated to).
@@ -178,7 +178,7 @@ pub fn generate_meta_merkle_snapshot(bank: &Arc<Bank>) -> Result<MetaMerkleSnaps
                 .collect();
             let stake_merkle = MerkleTree::new(&hashed_nodes[..], true);
 
-            let voting_wallet = get_vote_withdrawer(bank, voter_pubkey);
+            let voting_wallet = get_validator_identity(bank, voter_pubkey);
             if voting_wallet.is_none() {
                 println!(
                     "Missing vote account {}, setting voting wallet to default",

@@ -116,8 +116,8 @@ To test the upload endpoint with a snapshot (replace fields with actual values):
 curl -X POST http://localhost:3000/upload \
   -F "slot=340850340" \
   -F "network=testnet" \
-  -F "merkle_root=8oaP5t8E6GEMVE19NFbCNAUxQ7GZe6q8c6XVWvgBgs5p" \
-  -F "signature=43P1z1o7zXQbK3ocFUVrwGmg1bS8kdwh1tg4FNKJ2f2UDaEZ6pgvwLyMEf2qcXqf2vZ2RrPg9zJAM6pddV645Q2" \
+  -F "merkle_root=34sfrZPCyuLXsq5v1ybahTVSwQQE6A3VJyr9JcgxsW21" \
+  -F "signature=3nn1EGUqZ5GSXgfAs86miP4z5HtVdKYdQeDdhm1p2M5XxfK16cxwBJYonFdN4BDT7qzpx6TyEhHUrnF2Bh7wGm71" \
   -F "file=@meta_merkle-340850340.zip" \
   -w "\nHTTP Status: %{http_code}\n" \
   -s
@@ -144,7 +144,7 @@ Example response:
 ### Get Voter Summary
 
 ```bash
-curl -i "http://localhost:3000/voter/9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr?network=testnet&slot=340850340"
+curl -i "http://localhost:3000/voter/5KjCzFvbCkRswE9x776udwrRXADbRiboNnmFQRhEHEuR?network=testnet&slot=340850340"
 ```
 
 Example response:
@@ -153,20 +153,14 @@ Example response:
 {
   "network": "testnet",
   "snapshot_slot": 340850340,
-  "stake_accounts": [
-    {
-      "active_stake": 9997717120,
-      "stake_account": "DXmtAZdYsVZT8ir8uPkuY4cgBtsxWpZU4QKdpcAbFngo",
-      "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd"
-    }
-  ],
+  "stake_accounts": [],
   "vote_accounts": [
     {
-      "active_stake": 32615703997228,
+      "active_stake": :33334695348563,
       "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd"
     }
   ],
-  "voting_wallet": "9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr"
+  "voting_wallet": "5KjCzFvbCkRswE9x776udwrRXADbRiboNnmFQRhEHEuR"
 }
 ```
 
@@ -180,28 +174,28 @@ Example response:
 
 ```json
 {
-  "network": "testnet",
-  "snapshot_slot": 340850340
   "meta_merkle_leaf": {
-    "active_stake": 32615703997228,
-    "stake_merkle_root": "FcBZ89hYQpb5aYcQeBvnBN8dRHoWsV2FdWdVVE369jw7",
+    "active_stake": 33334695348563,
+    "stake_merkle_root": "88dMM15gT735bBKNt6ejZFqVJZT7RH7jms1nwPErcr5K",
     "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd",
-    "voting_wallet": "9w7BxC28QqDqCuKSPYVwDi1GeNvrXKhMKUuFzF2T3eUr"
+    "voting_wallet": "5KjCzFvbCkRswE9x776udwrRXADbRiboNnmFQRhEHEuR"
   },
   "meta_merkle_proof": [
-    "5MQsFvce5HZbiAa6ZFckbaDjw9834ZhGPVnW8jpmTF2F",
-    "FUymD22xJuTyUSm3Rvi4sEzZf5PCAyc183hJ8QGS6PGA",
-    "5ocvKp3VR4hrt2yFGiJMXHjwJcZg3ku7WMX2V3zBEC7u",
-    "Ht8zCJdynqNS5AFgiMXGv97MSEc1V5bvU2B68uQWZb5Z",
-    "2eqx4VuW5vaiDnvfhePW8taCa5AuVpViBKKRmQHbrwtN",
-    "7FdjixP6zEFdFHitme2yPhiX1ERwJW257MKAhyob5UKm",
-    "39nmdZYqWKMWzhET9tTq5xfWEeDthf69PJHrFPV9R1Ta",
-    "BCBq2GRwdmdaVBEvGb6K4BM4uDtgPuaDcHpoekzH5chx",
-    "BsKrjCspup6KtKjYe4bbxd2JHmuXEKdF2Efr2q1gHUzh",
-    "CPPSFu2AZb7yFSJHcXenrYp6BzLNfeTB6iKtMxYx5cQw",
-    "G5U1aG9EKRMX4znZc47LE1rdrJmJ8g5aCNydFRDSsxgf",
-    "DRoQrDBYKLPWYUPEg6vvDEri5hHNhNE2bmejLMHkmNik"
+    "DekswL1ny57JTqM9dqgZydN8siHNCkpT9K4pbwMJvygU",
+    "7hDL2wvLL6Gj1qU9tvZTmMGvoiGn3q6huFyTvWiPAuze",
+    "EKArYLKqkg9n5BpTACHbrK5jtwoCF3xYr7HVXLBmnwyc",
+    "7VvZx4gkdi9k8fwRaY2UBQeYPXTv6pfqnAAsaCRUkLVy",
+    "FCoAuswGk3hrQCcd68wUWNrXYBZmNkavE76zALTRsPo1",
+    "Eo38DkkZ6k5DDHosWFa7yUf2GYcWzVycYt21fzFFY7M2",
+    "AxHkTpxsNgPA12b2aX4R6DPuQbAn6ni4Kg3ExpFr6Kxw",
+    "68xkyfSadARiN8v2NPxSeGE5V9GsMUFoZGJpXvFScFHr",
+    "Eh3owVJxCLheASwEMJUY2jsCC3VXMGk8cqQuAKMc7BZ8",
+    "8LkeSkyDR38UC2PofhWqpfrTgQSPYTxegqt5wAgS86Fd",
+    "J8WL9x4uedpC4ZNd2sp7nwMqBpX1ew92VtEM3pbz9Tc5",
+    "8Hn8LWDnKLnsZhQSpPyV3cQWDm7apyKvVDRWhfWTo69b"
   ],
+  "network": "testnet",
+  "snapshot_slot": 340850340
 }
 ```
 
@@ -224,7 +218,7 @@ Example response:
   },
   "stake_merkle_proof": [
     "Gu8E91fBN2XeJECWpmxCH8gnx4zmsBor1ewWWGHyA375",
-    "468mq67yo9svHuQK9bqYx71E2opDaJtkqsEEBKEt1Bvr"
+    "HAsYab37zUZDdT37CCS6mNx1Z93WkA9Sobs4i4cJ8H5u"
   ],
   "vote_account": "1vgZrjS88D7RA1CbcSAovvyd6cSVqk3Ag1Ty2kSrJVd"
 }
