@@ -2,6 +2,9 @@
 
 A self-contained Rust web service for serving Merkle proofs and leaf nodes for Solana governance voting.
 
+[← Back to Project README](../README.md)
+[→ Deployment Guide](DEPLOYMENT.md)
+
 ## Quick Start
 
 ```bash
@@ -257,3 +260,7 @@ curl -i http://localhost:3000/healthz
 - `rusqlite` - SQLite database interface
 - `serial_test` - Sequential test execution for environment variable isolation
 - `anyhow` - Error handling
+
+## Usage Notes
+
+- If verifier service is used with CloudFlare proxy, there may be a origin timeout limit of 100s that will result in 504 errors for long running /upload requests. If modification on CloudFlare is not possible, it is recommended to bypass the proxy and use the public IP address of the instance.

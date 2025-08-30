@@ -2,6 +2,9 @@
 
 This guide walks an operator through provisioning an AWS EC2 instance and running the Verifier Service in Docker. It includes security group settings, environment variables, and verification steps.
 
+[← Back to Project README](../README.md)
+[→ Verifier Service README](README.md)
+
 ### Prerequisites
 
 - AWS account with permissions to create EC2 instances, Security Groups, and Elastic IPs

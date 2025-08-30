@@ -6,6 +6,8 @@ This repo contains:
 - `programs/gov-v1/`: The Anchor-based on-chain program used to coordinate Operator voting and finalize snapshot consensus.
 
 [→ Governance Voter Snapshot Program Design](programs/gov-v1/README.md)
+[→ Verifier Service README](verifier-service/README.md)
+[→ Verifier Service Deployment](verifier-service/DEPLOYMENT.md)
 
 ---
 
