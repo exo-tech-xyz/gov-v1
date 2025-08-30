@@ -72,7 +72,7 @@ Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
 - GLOBAL_REFILL_INTERVAL, GLOBAL_RATE_BURST: request rate limiting (defaults 10/10)
 - UPLOAD_REFILL_INTERVAL, UPLOAD_RATE_BURST: upload route rate limiting (defaults 60/2)
 
-### 7) Cloudflare (TBC)
+### 7) Cloudflare
 
 - Enable proxy on DNS (orange cloud) to route traffic through Cloudflare
 - Configure Cloudflare rate limiting rules for your paths (e.g., /upload, /proof/\*)
