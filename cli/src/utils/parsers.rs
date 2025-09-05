@@ -2,10 +2,12 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use solana_sdk::bs58;
 use std::str::FromStr;
 
+/// Parse a string in base58 format to a Pubkey.
 pub fn parse_pubkey(s: &str) -> Result<Pubkey, String> {
     Pubkey::from_str(s).map_err(|e| format!("invalid pubkey: {e}"))
 }
 
+/// Parse a string in base58 format to a 32-byte array.
 pub fn parse_base_58_32(s: &str) -> Result<[u8; 32], String> {
     let bytes = bs58::decode(s)
         .into_vec()

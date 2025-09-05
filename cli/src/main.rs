@@ -12,6 +12,7 @@ use clap::Parser;
 use cli::{generate_meta_merkle_snapshot, utils::*, MetaMerkleSnapshot};
 use gov_v1::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig};
 use log::info;
+use solana_sdk::signer::Signer;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tip_router_operator_cli::{
@@ -420,6 +421,8 @@ fn main() -> Result<()> {
             slot,
             ref save_path,
         } => {
+            // Start timer
+            let start_time = std::time::Instant::now();
             let SnapshotPaths {
                 ledger_path,
                 account_paths,
@@ -443,17 +446,29 @@ fn main() -> Result<()> {
 
             let file_path = PathBuf::from(save_path).join(format!("meta_merkle-{}.zip", slot));
             meta_merkle_snapshot.save_compressed(file_path)?;
+
+            // Stop timer
+            let end_time = std::time::Instant::now();
+            let duration = end_time.duration_since(start_time);
+            info!("Time taken: {:?}", duration);
         }
         Commands::LogMetaMerkleHash {
             read_path,
             is_compressed,
         } => {
+            let authority = read_keypair_file(&cli.authority_path).unwrap();
             let snapshot = MetaMerkleSnapshot::read(read_path.clone(), is_compressed)?;
             let snapshot_hash = MetaMerkleSnapshot::snapshot_hash(read_path, is_compressed)?;
 
             let encoded_root = bs58::encode(snapshot.root).into_string();
             let encoded_hash = bs58::encode(snapshot_hash.to_bytes()).into_string();
 
+            let mut message = Vec::new();
+            message.extend_from_slice(&snapshot.slot.to_le_bytes());
+            message.extend_from_slice(&encoded_root.as_bytes());
+            let signature = authority.sign_message(&message);
+
+            println!("Signature: {}", bs58::encode(signature).into_string());
             println!("Slot: {}", snapshot.slot);
             println!("Merkle Root: {}", encoded_root);
             println!("Snapshot Hash: {}", encoded_hash);

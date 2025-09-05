@@ -6,6 +6,8 @@ This repo contains:
 - `programs/gov-v1/`: The Anchor-based on-chain program used to coordinate Operator voting and finalize snapshot consensus.
 
 [→ Governance Voter Snapshot Program Design](programs/gov-v1/README.md)
+[→ Verifier Service README](verifier-service/README.md)
+[→ Verifier Service Deployment](verifier-service/DEPLOYMENT.md)
 
 ---
 
@@ -13,6 +15,9 @@ This repo contains:
 
 - [Project Structure](#project-structure)
 - [Stake Pool Handling](#stake-pool-handling)
+- [Vote Account](#vote-account)
+  - [Stake Calculation](#stake-calculation)
+  - [Missing Vote Account](#missing-vote-account)
 - [Testing](#testing)
 - [CLI Usage](#cli-usage-via-cargo-run)
   - [Program Setup](#program-setup-after-deployment)
@@ -59,10 +64,22 @@ For individual stake accounts not managed by any stake pool program, the system 
 
 ---
 
+## Vote Account
+
+### Stake Calculation
+
+Vote account effective stake is calculated by summing the individual active stake accounts delegated to the vote account that reads from the Bank's StakesCache. This bottom up approach differs from using the value record in Bank's `epoch_stakes` computed at epoch boundary.
+
+### Missing Vote Account
+
+If a vote account delegated to is missing (closed by the manager), the system will set the voting wallet to the default address `11111111111111111111111111111111`. This implies that the delegators can continue to vote, but the vote account will not be able to vote.
+
+---
+
 ## Dependencies
 
 1. Clone `jito-tip-router` to parent directory and switch to `6d0d8244314ff7c04625b531f033b770a8c7aafc` commit.
-2. In the cloned repo, modify references of `branch=v2.1-upgrade` (which no longer exists) to `rev=358fbc3c20d947c977a136808f9fbf7f070e478b` in `Cargo.lock` and `Cargo.toml`.
+2. In the cloned repo, modify references of `branch = "v2.1-upgrade"` (which no longer exists) to `rev = "358fbc3c20d947c977a136808f9fbf7f070e478b"` in `Cargo.lock` and `Cargo.toml`.
 3. Ensure system is using Rust Version `1.86.0`, otherwise install with:
 
 ```bash
@@ -139,11 +156,36 @@ RUST_LOG=info cargo run --bin cli -- \
 # and stores at snapshot path.
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 340850340
 
+# (DEV MODE - Use Release Mode for production snapshots)
 # Generates MetaMerkleSnapshot from the Solana ledger snapshot and stores at save path.
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
 
-# Log Merkle root & hash from snapshot file
-RUST_LOG=info cargo run --bin cli -- log-meta-merkle-hash  --read-path ./meta_merkle-340850340.zip --is-compressed
+# (RELEASE MODE)
+# Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (linux)
+TMPDIR=/mnt/nvme2/solana/tmp \
+RUSTFLAGS="-C target-cpu=native" \
+RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
+cargo run --release --bin cli -- \
+  --ledger-path test-ledger \
+  --full-snapshots-path test-ledger/backup-snapshots \
+  --backup-snapshots-dir test-ledger/backup-snapshots \
+  generate-meta-merkle --slot 361319354
+
+# (RELEASE MODE)
+# Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (macos)
+TMPDIR=/tmp \
+RUSTFLAGS="-C target-cpu=native" \
+RAYON_NUM_THREADS=$(sysctl -n hw.ncpu) ZSTD_NBTHREADS=$(sysctl -n hw.ncpu) \
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
+cargo run --release --bin cli -- \
+  --ledger-path test-ledger \
+  --full-snapshots-path test-ledger/backup-snapshots \
+  --backup-snapshots-dir test-ledger/backup-snapshots \
+  generate-meta-merkle --slot 340850340
+
+# Log Merkle root, hash,' and operator signature from snapshot file
+RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-340850340.zip --is-compressed
 ```
 
 ---

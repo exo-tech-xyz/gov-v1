@@ -6,3 +6,7 @@ tmp/
 .anchor
 **/*.rs.bk
 node_modules
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
