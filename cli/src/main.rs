@@ -172,7 +172,7 @@ pub enum Commands {
 
 fn main() -> Result<()> {
     let runtime = Builder::new_multi_thread().enable_all().build()?;
-    env_logger::init();
+    let _enter = runtime.enter();
     let cli = Cli::parse();
 
     fn load_client_program(payer: &Keypair, rpc_url: String) -> Program<&Keypair> {

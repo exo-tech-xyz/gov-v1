@@ -161,7 +161,7 @@ cargo run --release --bin cli -- \
   --ledger-path /mnt/ledger \
   --full-snapshots-path /mnt/ledger/snapshots \
   --backup-snapshots-dir /mnt/ledger/snapshots \
-  snapshot-slot --slot 340850340
+  snapshot-slot --slot 368478463
 
 # (RELEASE MODE - Linux)
 # Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (linux)
@@ -188,7 +188,7 @@ cargo run --release --bin cli -- \
   generate-meta-merkle --slot 340850340
 
 # Log Merkle root, hash,' and operator signature from snapshot file
-RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-340850340.zip --is-compressed
+RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-367628001.zip --is-compressed
 ```
 
 ---
@@ -239,6 +239,16 @@ RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --aut
 ---
 
 ## Troubleshooting
+
+### Missing Incrementatal Snapshot
+
+If you encounter an error similar to:
+
+```
+Failed to open snapshot archive '/mnt/ledger/snapshots/incremental-snapshot-368528476-368534392-AociwZMrWXr48RYipTcnZ3tZKE6ypzd1Wocms1PgWn5M.tar.zst': No such file or directory (os error 2)
+```
+
+**Solution:** Increase retention period of incremental snapshots or use an empty `backup-snapshots-dir` so full snapshot replay is enforced, or copy incremental snapshots to a new directory.
 
 ### Snapshot Bank Verification Error
 

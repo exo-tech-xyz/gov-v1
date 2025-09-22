@@ -69,7 +69,7 @@ TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111 \
 cargo test --bin verifier-service
 ```
 
-## Build and Run Docker (using local binary)
+## Build and Run Docker (using local binary on Linux)
 
 ```bash
 # 1) Build the binary locally
@@ -93,6 +93,7 @@ docker login # login to docker hub if needed
 docker tag verifier-service:local username/verifier-service:v0.1.0 # set version
 docker tag verifier-service:local username/verifier-service:latest
 docker push username/verifier-service:latest
+docker push username/verifier-service:v0.1.0
 
 ```
 
