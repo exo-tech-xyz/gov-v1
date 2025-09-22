@@ -149,38 +149,41 @@ RUST_LOG=info cargo run --bin cli -- \
 
 ---
 
-### Snapshot Handling
+### Snapshot Generation and Handling
 
 ```bash
 # Generates a Solana ledger snapshot for a specific slot (from validator bank state)
-# and stores at snapshot path.
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 340850340
+# and stores at `backup-snapshots-dir`.
+# Increase file descriptor limit to with `ulimit -n 1000000` if needed,
+RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
+cargo run --release --bin cli -- \
+  --ledger-path /mnt/ledger \
+  --full-snapshots-path /mnt/ledger/snapshots \
+  --backup-snapshots-dir /mnt/ledger/snapshots \
+  snapshot-slot --slot 340850340
 
-# (DEV MODE - Use Release Mode for production snapshots)
-# Generates MetaMerkleSnapshot from the Solana ledger snapshot and stores at save path.
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
-
-# (RELEASE MODE)
+# (RELEASE MODE - Linux)
 # Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (linux)
-TMPDIR=/mnt/nvme2/solana/tmp \
+# Create a tmp directory for `TMPDIR` and `account-paths` for storing intermediary files.
+# Output snapshot is stored in current directory by default.
+TMPDIR=/mnt/ledger/gov-tmp \
 RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
 cargo run --release --bin cli -- \
-  --ledger-path test-ledger \
-  --full-snapshots-path test-ledger/backup-snapshots \
-  --backup-snapshots-dir test-ledger/backup-snapshots \
+  --ledger-path /mnt/ledger \
+  --account-paths /mnt/ledger/gov-tmp/accounts \
+  --backup-snapshots-dir /mnt/ledger/backup \
   generate-meta-merkle --slot 361319354
 
-# (RELEASE MODE)
-# Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (macos)
+# (RELEASE MODE - MacOS)
 TMPDIR=/tmp \
 RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(sysctl -n hw.ncpu) ZSTD_NBTHREADS=$(sysctl -n hw.ncpu) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
 cargo run --release --bin cli -- \
   --ledger-path test-ledger \
-  --full-snapshots-path test-ledger/backup-snapshots \
   --backup-snapshots-dir test-ledger/backup-snapshots \
   generate-meta-merkle --slot 340850340
 
@@ -353,4 +356,12 @@ find test-ledger -mindepth 1 -maxdepth 1 \
   ! -name 'rocksdb' \
   ! -name 'genesis.bin' \
   -exec rm -rf {} +
+```
+
+### Testing Snapshot Generation
+
+```bash
+# (DEV MODE - Use Release Mode for production snapshots)
+# Generates MetaMerkleSnapshot from the Solana ledger snapshot and stores at save path.
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
 ```
