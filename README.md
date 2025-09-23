@@ -78,8 +78,8 @@ If a vote account delegated to is missing (closed by the manager), the system wi
 
 ## Dependencies
 
-1. Clone `jito-tip-router` to parent directory and switch to `6d0d8244314ff7c04625b531f033b770a8c7aafc` commit.
-2. In the cloned repo, modify references of `branch = "v2.1-upgrade"` (which no longer exists) to `rev = "358fbc3c20d947c977a136808f9fbf7f070e478b"` in `Cargo.lock` and `Cargo.toml`.
+1. Clone `jito-tip-router` to parent directory and switch to `756b13ad0de2b608b9b036b5eb579f99ab94082d` commit.
+2. (Optional, in case branch no longer exists) In the cloned repo, modify references of `branch = "v2.2-upgrade"` to `rev = "7452e90ffe1f9686c561a4f30c2caed500048a42"` in `Cargo.lock` and `Cargo.toml`.
 3. Ensure system is using Rust Version `1.86.0`, otherwise install with:
 
 ```bash
@@ -149,43 +149,46 @@ RUST_LOG=info cargo run --bin cli -- \
 
 ---
 
-### Snapshot Handling
+### Snapshot Generation and Handling
 
 ```bash
 # Generates a Solana ledger snapshot for a specific slot (from validator bank state)
-# and stores at snapshot path.
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 340850340
+# and stores at `backup-snapshots-dir`.
+# Increase file descriptor limit to with `ulimit -n 1000000` if needed,
+RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
+cargo run --release --bin cli -- \
+  --ledger-path /mnt/ledger \
+  --full-snapshots-path /mnt/ledger/snapshots \
+  --backup-snapshots-dir /mnt/ledger/snapshots \
+  snapshot-slot --slot 368478463
 
-# (DEV MODE - Use Release Mode for production snapshots)
-# Generates MetaMerkleSnapshot from the Solana ledger snapshot and stores at save path.
-RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
-
-# (RELEASE MODE)
+# (RELEASE MODE - Linux)
 # Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (linux)
-TMPDIR=/mnt/nvme2/solana/tmp \
+# Create a tmp directory for `TMPDIR` and `account-paths` for storing intermediary files.
+# Output snapshot is stored in current directory by default.
+TMPDIR=/mnt/ledger/gov-tmp \
 RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
 cargo run --release --bin cli -- \
-  --ledger-path test-ledger \
-  --full-snapshots-path test-ledger/backup-snapshots \
-  --backup-snapshots-dir test-ledger/backup-snapshots \
+  --ledger-path /mnt/ledger \
+  --account-paths /mnt/ledger/gov-tmp/accounts \
+  --backup-snapshots-dir /mnt/ledger/backup \
   generate-meta-merkle --slot 361319354
 
-# (RELEASE MODE)
-# Generates MetaMerkleSnapshot from the Solana ledger snapshot using release mode and tmp storage config (macos)
+# (RELEASE MODE - MacOS)
 TMPDIR=/tmp \
 RUSTFLAGS="-C target-cpu=native" \
 RAYON_NUM_THREADS=$(sysctl -n hw.ncpu) ZSTD_NBTHREADS=$(sysctl -n hw.ncpu) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
 cargo run --release --bin cli -- \
   --ledger-path test-ledger \
-  --full-snapshots-path test-ledger/backup-snapshots \
   --backup-snapshots-dir test-ledger/backup-snapshots \
   generate-meta-merkle --slot 340850340
 
 # Log Merkle root, hash,' and operator signature from snapshot file
-RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-340850340.zip --is-compressed
+RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-367628001.zip --is-compressed
 ```
 
 ---
@@ -236,6 +239,16 @@ RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --aut
 ---
 
 ## Troubleshooting
+
+### Missing Incrementatal Snapshot
+
+If you encounter an error similar to:
+
+```
+Failed to open snapshot archive '/mnt/ledger/snapshots/incremental-snapshot-368528476-368534392-AociwZMrWXr48RYipTcnZ3tZKE6ypzd1Wocms1PgWn5M.tar.zst': No such file or directory (os error 2)
+```
+
+**Solution:** Increase retention period of incremental snapshots or use an empty `backup-snapshots-dir` so full snapshot replay is enforced, or copy incremental snapshots to a new directory.
 
 ### Snapshot Bank Verification Error
 
@@ -353,4 +366,12 @@ find test-ledger -mindepth 1 -maxdepth 1 \
   ! -name 'rocksdb' \
   ! -name 'genesis.bin' \
   -exec rm -rf {} +
+```
+
+### Testing Snapshot Generation
+
+```bash
+# (DEV MODE - Use Release Mode for production snapshots)
+# Generates MetaMerkleSnapshot from the Solana ledger snapshot and stores at save path.
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340 --save-path ./
 ```

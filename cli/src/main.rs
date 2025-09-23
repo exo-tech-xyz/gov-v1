@@ -15,6 +15,7 @@ use log::info;
 use solana_sdk::signer::Signer;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::runtime::Builder;
 use tip_router_operator_cli::{
     cli::SnapshotPaths,
     ledger_utils::{get_bank_from_ledger, get_bank_from_snapshot_at_slot},
@@ -35,14 +36,17 @@ struct Cli {
     #[arg(short, long, env, default_value = "http://localhost:8899")]
     pub rpc_url: String,
 
-    #[arg(short, long, env, default_value = "test-ledger")]
-    pub ledger_path: PathBuf,
+    #[arg(short, long, env)]
+    pub ledger_path: Option<PathBuf>,
 
-    #[arg(short, long, env, default_value = "tmp/full-snapshots")]
+    #[arg(short, long, env)]
     pub full_snapshots_path: Option<PathBuf>,
 
-    #[arg(short, long, env, default_value = "tmp/backup-snapshots")]
-    pub backup_snapshots_dir: PathBuf,
+    #[arg(long, env)]
+    pub account_paths: Option<Vec<PathBuf>>,
+
+    #[arg(short, long, env)]
+    pub backup_snapshots_dir: Option<PathBuf>,
 
     #[arg(long, env, default_value = "mainnet")]
     pub cluster: String,
@@ -56,18 +60,18 @@ struct Cli {
 
 impl Cli {
     pub fn get_snapshot_paths(&self) -> SnapshotPaths {
-        let ledger_path = self.ledger_path.clone();
-        let account_paths = None;
+        let ledger_path = self.ledger_path.clone().unwrap();
+        let account_paths = self.account_paths.clone();
         let account_paths = account_paths.map_or_else(|| vec![ledger_path.clone()], |paths| paths);
         let full_snapshots_path = self.full_snapshots_path.clone();
         let full_snapshots_path = full_snapshots_path.map_or(ledger_path.clone(), |path| path);
-        let incremental_snapshots_path = self.backup_snapshots_dir.clone();
+        let backup_snapshots_dir = self.backup_snapshots_dir.clone().unwrap();
         SnapshotPaths {
             ledger_path,
             account_paths,
             full_snapshots_path,
-            incremental_snapshots_path,
-            backup_snapshots_dir: self.backup_snapshots_dir.clone(),
+            incremental_snapshots_path: backup_snapshots_dir.clone(),
+            backup_snapshots_dir,
         }
     }
 }
@@ -167,7 +171,8 @@ pub enum Commands {
 }
 
 fn main() -> Result<()> {
-    env_logger::init();
+    let runtime = Builder::new_multi_thread().enable_all().build()?;
+    let _enter = runtime.enter();
     let cli = Cli::parse();
 
     fn load_client_program(payer: &Keypair, rpc_url: String) -> Program<&Keypair> {

@@ -24,7 +24,10 @@ use spl_stake_pool::state::AccountType;
 use spl_stake_pool::state::StakePool;
 use std::sync::Arc;
 
-fn get_validator_identity(bank: &solana_runtime::bank::Bank, vote_account: &Pubkey) -> Option<Pubkey> {
+fn get_validator_identity(
+    bank: &solana_runtime::bank::Bank,
+    vote_account: &Pubkey,
+) -> Option<Pubkey> {
     let account = bank.get_account(vote_account)?;
     if account.owner() != &solana_program::vote::program::id() {
         return None;
