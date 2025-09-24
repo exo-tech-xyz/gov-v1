@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-gov_v1 = "HQrwhDzMa7dEnUi2Nku925yeAAxioFhqpLMpQ4g6Zh5N"
+gov_v1 = "Dx6SGfGoXipHA4bmtGxZ6DQXztRoKmuX6fx3EMouigHX"
 
 [registry]
 url = "https://api.apr.dev"

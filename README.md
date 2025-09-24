@@ -127,12 +127,14 @@ export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
   init-program-config
 
 # Add or remove operators from whitelist
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
   update-operator-whitelist -a key1,key2,key3 -r key4,key5
 
 # Update config (all arguments are optional):
@@ -140,6 +142,7 @@ RUST_LOG=info cargo run --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
   update-program-config \
   --min-consensus-threshold-bps 6000 \
   --vote-duration 180 \
@@ -197,13 +200,19 @@ RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json l
 
 ```bash
 # Log ProgramConfig
-RUST_LOG=info cargo run --bin cli -- log --ty program-config
+RUST_LOG=info cargo run --bin cli -- \
+  --rpc-url https://api.devnet.solana.com log \
+  --ty program-config
 
 # Log BallotBox (e.g. id = 0)
-RUST_LOG=info cargo run --bin cli -- log --ty ballot-box --id 0
+RUST_LOG=info cargo run --bin cli -- \
+  --rpc-url https://api.devnet.solana.com log \
+  --ty ballot-box --id 0
 
 # Log ConsensusResult of a vote account for a specific ballot (e.g. id = 0)
-RUST_LOG=info cargo run --bin cli -- log --ty consensus-result --id 0 --vote-account key1
+RUST_LOG=info cargo run --bin cli -- \
+  --rpc-url https://api.devnet.solana.com log \
+  --ty consensus-result --id 0
 ```
 
 ---
@@ -212,16 +221,35 @@ RUST_LOG=info cargo run --bin cli -- log --ty consensus-result --id 0 --vote-acc
 
 ```bash
 # Create a new BallotBox
-RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --authority-path ~/.config/solana/id.json init-ballot-box
+RUST_LOG=info cargo run --bin cli -- \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  init-ballot-box
 
 # Vote with root + hash
-RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --authority-path ~/.config/solana/id.json cast-vote --id 1 --root ByVtRpEnLyD1eVS8Bq21VvDnMffsqPAypaMT9KMZCZcJ --hash 4seYTnZyZNby5ZQTy8ajAapDiMgUYrvYx4hzYRXVn4zH
+RUST_LOG=info cargo run --bin cli -- \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  cast-vote --id 1 \
+  --root ByVtRpEnLyD1eVS8Bq21VvDnMffsqPAypaMT9KMZCZcJ \
+  --hash 4seYTnZyZNby5ZQTy8ajAapDiMgUYrvYx4hzYRXVn4zH
 
 # Vote using a snapshot file
-RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --authority-path ~/.config/solana/id.json cast-vote-from-snapshot --id 1 --read-path ./meta_merkle-340850340.zip
+RUST_LOG=info cargo run --bin cli -- \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  cast-vote-from-snapshot --id 1 \
+  --read-path ./meta_merkle-340850340.zip
 
 # Remove vote (before consensus and voting expiry)
-RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --authority-path ~/.config/solana/id.json remove-vote --id 1
+RUST_LOG=info cargo run --bin cli -- \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  remove-vote --id 1
 ```
 
 ---
@@ -230,10 +258,18 @@ RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --aut
 
 ```bash
 # Finalize winning ballot (after consensus)
-RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --authority-path ~/.config/solana/id.json finalize-ballot --id 1
+RUST_LOG=info cargo run --bin cli -- \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  finalize-ballot --id 1
 
 # Set tie-breaking result if consensus was not reached
-RUST_LOG=info cargo run --bin cli -- --payer-path ~/.config/solana/id.json --authority-path ~/.config/solana/id.json set-tie-breaker --id 1 --idx 0
+RUST_LOG=info cargo run --bin cli -- \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  set-tie-breaker --id 1 --idx 0
 ```
 
 ---
