@@ -86,4 +86,4 @@ Each snapshot is uniquely identified by its `snapshot_hash`, defined as the SHA-
 
 ### 6. Tie Breaking
 
-If consensus is not reached before `vote_expiry_timestamp`, the `tie_breaker_admin` is allowed to select a valid ballot among those already cast. This ensures liveness and allows governance recovery from operator deadlock.
+If consensus is not reached before `vote_expiry_timestamp`, the `tie_breaker_admin` is allowed to select any ballot in the BallotBox. This ensures liveness and allows governance recovery from operator deadlock.
