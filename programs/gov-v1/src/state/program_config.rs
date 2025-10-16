@@ -34,11 +34,13 @@ impl ProgramConfig {
         }
     }
 
+    // Add operators to the whitelist. Duplicate operators are ignored.
     pub fn add_operators(&mut self, operators_to_add: Option<Vec<Pubkey>>) {
-        if let Some(operators) = operators_to_add {
-            let existing: HashSet<Pubkey> = self.whitelisted_operators.iter().cloned().collect();
-            for op in operators {
-                if !existing.contains(&op) {
+        if let Some(new_operators) = operators_to_add {
+            let mut existing_set: HashSet<Pubkey> =
+                self.whitelisted_operators.iter().cloned().collect();
+            for op in new_operators.into_iter() {
+                if existing_set.insert(op) {
                     self.whitelisted_operators.push(op);
                 }
             }

@@ -49,6 +49,13 @@ fn test_program_config(
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.whitelisted_operators, operators_to_add);
 
+    // Add duplicate operators
+    send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None)?;
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
+
+    // No changes should be made
+    assert_eq!(program_config.whitelisted_operators, operators_to_add);
+
     // Remove operators
     let operators_to_remove = operators_to_add[8..].to_vec();
 
