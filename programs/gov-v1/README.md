@@ -12,12 +12,12 @@ This program enables whitelisted operators to vote on stake distribution snapsho
 
 ### Account Types
 
-| Account Type      | Purpose                                                                                 |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| `BallotBox`       | Stores voting state, operator whitelist, consensus threshold, and ballot configuration. |
-| `ConsensusResult` | Stores the finalized `meta_merkle_root` and `snapshot_hash` for a completed vote.       |
-| `MetaMerkleProof` | Stores the proof data required to verify a single validator’s stake in a snapshot.      |
-| `ProgramConfig`   | Stores program-wide configuration, including admin and operator whitelist.              |
+| Account Type      | Purpose                                                                            |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `BallotBox`       | Stores voting state, consensus threshold, and ballot configuration.                |
+| `ConsensusResult` | Stores the finalized `meta_merkle_root` and `snapshot_hash` for a completed vote.  |
+| `MetaMerkleProof` | Stores the proof data required to verify a single validator’s stake in a snapshot. |
+| `ProgramConfig`   | Stores program-wide configuration, including admin and global operator whitelist.  |
 
 ### Instruction Set
 
