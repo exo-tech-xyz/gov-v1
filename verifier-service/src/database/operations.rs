@@ -1,7 +1,7 @@
 use anyhow::Result;
 use axum::http::StatusCode;
 use serde_json;
-use sqlx::{sqlite::SqlitePool, Row as SqlxRow};
+use sqlx::{sqlite::SqlitePool, Executor, Row as SqlxRow, Sqlite};
 use std::convert::TryFrom;
 use tracing::debug;
 use tracing::info;
@@ -10,12 +10,10 @@ use super::models::*;
 
 /// Database operations for vote accounts
 impl VoteAccountRecord {
-    pub async fn insert(&self, pool: &SqlitePool) -> Result<()> {
-        debug!(
-            "Inserting vote account: {} for slot {}",
-            self.vote_account, self.snapshot_slot
-        );
-
+    pub async fn insert_exec<'e, E>(&self, exec: E) -> Result<()>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
         sqlx::query(
             "INSERT OR REPLACE INTO vote_accounts
              (network, snapshot_slot, vote_account, voting_wallet, stake_merkle_root, active_stake, meta_merkle_proof)
@@ -28,7 +26,7 @@ impl VoteAccountRecord {
         .bind(&self.stake_merkle_root)
         .bind(i64::try_from(self.active_stake)?)
         .bind(serde_json::to_string(&self.meta_merkle_proof)?)
-        .execute(pool)
+        .execute(exec)
         .await?;
 
         Ok(())
@@ -100,12 +98,10 @@ impl VoteAccountRecord {
 
 /// Database operations for stake accounts
 impl StakeAccountRecord {
-    pub async fn insert(&self, pool: &SqlitePool) -> Result<()> {
-        debug!(
-            "Inserting stake account: {} for slot {}",
-            self.stake_account, self.snapshot_slot
-        );
-
+    pub async fn insert_exec<'e, E>(&self, exec: E) -> Result<()>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
         sqlx::query(
             "INSERT OR REPLACE INTO stake_accounts
              (network, snapshot_slot, stake_account, vote_account, voting_wallet, active_stake, stake_merkle_proof)
@@ -118,7 +114,7 @@ impl StakeAccountRecord {
         .bind(&self.voting_wallet)
         .bind(i64::try_from(self.active_stake)?)
         .bind(serde_json::to_string(&self.stake_merkle_proof)?)
-        .execute(pool)
+        .execute(exec)
         .await?;
 
         Ok(())
@@ -191,7 +187,10 @@ impl StakeAccountRecord {
 
 /// Database operations for snapshot metadata
 impl SnapshotMetaRecord {
-    pub async fn insert(&self, pool: &SqlitePool) -> Result<()> {
+    pub async fn insert_exec<'e, E>(&self, exec: E) -> Result<()>
+    where
+        E: Executor<'e, Database = Sqlite>,
+    {
         debug!(
             "Inserting snapshot meta for slot {} on network {}",
             self.slot, self.network
@@ -207,7 +206,7 @@ impl SnapshotMetaRecord {
         .bind(&self.merkle_root)
         .bind(&self.snapshot_hash)
         .bind(&self.created_at)
-        .execute(pool)
+        .execute(exec)
         .await?;
 
         Ok(())
