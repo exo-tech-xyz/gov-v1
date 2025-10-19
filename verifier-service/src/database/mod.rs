@@ -3,6 +3,7 @@ pub mod migrator;
 pub mod models;
 pub mod operations;
 pub mod sql;
+mod path;
 
 use crate::utils::env_parse;
 use anyhow::Result;
@@ -14,10 +15,13 @@ use std::{fs, path::Path, str::FromStr};
 use tracing::info;
 
 pub use migrator::run_migrations;
+use self::path::validate_db_path;
 
 /// Create a new SQLx pool and run migrations
 pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {
     info!("Opening database at {:?}", db_path);
+
+    validate_db_path(db_path)?;
 
     // Ensure parent directory exists
     if db_path != ":memory:" {
@@ -26,10 +30,6 @@ pub async fn init_pool(db_path: &str) -> Result<SqlitePool> {
             if !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
             }
-        }
-        // Create the DB file if it doesn't exist
-        if !path.exists() {
-            fs::File::create(path)?;
         }
     }
 
