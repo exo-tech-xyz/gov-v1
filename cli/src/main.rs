@@ -15,11 +15,11 @@ use log::info;
 use solana_sdk::signer::Signer;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::runtime::Builder;
 use tip_router_operator_cli::{
     cli::SnapshotPaths,
     ledger_utils::{get_bank_from_ledger, get_bank_from_snapshot_at_slot},
 };
+use tokio::runtime::Builder;
 
 #[derive(Clone, Parser)]
 #[command(author, version, about)]
