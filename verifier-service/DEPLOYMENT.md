@@ -71,6 +71,7 @@ Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
 - UPLOAD_BODY_LIMIT: bytes; default 100MB
 - GLOBAL_REFILL_INTERVAL, GLOBAL_RATE_BURST: request rate limiting (defaults 10/10)
 - UPLOAD_REFILL_INTERVAL, UPLOAD_RATE_BURST: upload route rate limiting (defaults 60/2)
+- GOV_V1_MAX_SNAPSHOT_MB: decompressed snapshot cap in MiB for CLI/readers (default 256)
 
 ### 7) Cloudflare
 

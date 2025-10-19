@@ -106,6 +106,7 @@ Environment variables:
 - UPLOAD_BODY_LIMIT (optional, bytes; default 104857600 = 100MB)
 - GLOBAL_RATE_PER_SECOND, GLOBAL_RATE_BURST (optional; default 10/10)
 - UPLOAD_RATE_PER_SECOND, UPLOAD_RATE_BURST (optional; default 60/2)
+- GOV_V1_MAX_SNAPSHOT_MB (optional; decompressed snapshot cap in MiB; default 256)
 
 <!-- TODO: Add docker-compose for dev convenience -->
 <!-- TODO: Add Docker HEALTHCHECK using /healthz -->

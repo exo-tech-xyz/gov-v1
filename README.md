@@ -154,6 +154,10 @@ RUST_LOG=info cargo run --bin cli -- \
 
 ### Snapshot Generation and Handling
 
+Environment variables affecting snapshot IO:
+
+- `GOV_V1_MAX_SNAPSHOT_MB` (optional): maximum allowed decompressed snapshot size (in MiB) enforced by the CLI bounded decompressor when reading gzip files or raw files. Default is 256. Increase if your snapshots legitimately exceed this size.
+
 ```bash
 # Generates a Solana ledger snapshot for a specific slot (from validator bank state)
 # and stores at `backup-snapshots-dir`.

@@ -17,6 +17,8 @@ UPLOAD_REFILL_INTERVAL=60
 UPLOAD_RATE_BURST=2
 # Upload body size limit (bytes)
 UPLOAD_BODY_LIMIT=$((100 * 1024 * 1024)) # 100MB
+# Max decompressed snapshot size (MiB) enforced by CLI bounded decompressor
+GOV_V1_MAX_SNAPSHOT_MB=256
 
 # SQLite pool size
 SQLITE_MAX_CONNECTIONS=4
@@ -59,6 +61,7 @@ sudo docker run -d --name verifier --restart unless-stopped \
   -e UPLOAD_RATE_BURST="${UPLOAD_RATE_BURST}" \
   -e UPLOAD_BODY_LIMIT="${UPLOAD_BODY_LIMIT}" \
   -e SQLITE_MAX_CONNECTIONS="${SQLITE_MAX_CONNECTIONS}" \
+  -e GOV_V1_MAX_SNAPSHOT_MB="${GOV_V1_MAX_SNAPSHOT_MB}" \
   -v ${DATA_DIR}:/data \
   "${IMAGE}"
 
