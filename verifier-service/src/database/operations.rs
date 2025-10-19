@@ -15,9 +15,14 @@ impl VoteAccountRecord {
         E: Executor<'e, Database = Sqlite>,
     {
         sqlx::query(
-            "INSERT OR REPLACE INTO vote_accounts
+            "INSERT INTO vote_accounts
              (network, snapshot_slot, vote_account, voting_wallet, stake_merkle_root, active_stake, meta_merkle_proof)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(network, vote_account, snapshot_slot) DO UPDATE SET
+             voting_wallet = excluded.voting_wallet,
+             stake_merkle_root = excluded.stake_merkle_root,
+             active_stake = excluded.active_stake,
+             meta_merkle_proof = excluded.meta_merkle_proof",
         )
         .bind(&self.network)
         .bind(i64::try_from(self.snapshot_slot)?)
@@ -103,9 +108,14 @@ impl StakeAccountRecord {
         E: Executor<'e, Database = Sqlite>,
     {
         sqlx::query(
-            "INSERT OR REPLACE INTO stake_accounts
+            "INSERT INTO stake_accounts
              (network, snapshot_slot, stake_account, vote_account, voting_wallet, active_stake, stake_merkle_proof)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(network, stake_account, snapshot_slot) DO UPDATE SET
+             vote_account = excluded.vote_account,
+             voting_wallet = excluded.voting_wallet,
+             active_stake = excluded.active_stake,
+             stake_merkle_proof = excluded.stake_merkle_proof",
         )
         .bind(&self.network)
         .bind(i64::try_from(self.snapshot_slot)?)
@@ -197,9 +207,13 @@ impl SnapshotMetaRecord {
         );
 
         sqlx::query(
-            "INSERT OR REPLACE INTO snapshot_meta
+            "INSERT INTO snapshot_meta
              (network, slot, merkle_root, snapshot_hash, created_at)
-             VALUES (?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(network, slot) DO UPDATE SET
+             merkle_root = excluded.merkle_root,
+             snapshot_hash = excluded.snapshot_hash,
+             created_at = excluded.created_at",
         )
         .bind(&self.network)
         .bind(i64::try_from(self.slot)?)
