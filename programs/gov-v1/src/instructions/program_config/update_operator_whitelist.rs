@@ -19,7 +19,7 @@ pub fn handler(
 ) -> Result<()> {
     let program_config = &mut ctx.accounts.program_config;
     program_config.remove_operators(operators_to_remove);
-    program_config.add_operators(operators_to_add);
+    program_config.add_operators(operators_to_add)?;
 
     Ok(())
 }
