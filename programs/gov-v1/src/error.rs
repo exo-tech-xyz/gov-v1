@@ -24,4 +24,8 @@ pub enum ErrorCode {
     InvalidMerkleProof,
     #[msg("Vector size exceeded")]
     VecFull,
+    #[msg("Overlapping operators in add and remove lists")]
+    OverlappingWhitelistEntries,
+    #[msg("Invalid ballot index")]
+    InvalidBallotIndex,
 }

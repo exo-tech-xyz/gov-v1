@@ -77,6 +77,11 @@ fn test_program_config(
         operators_to_add[..8].to_vec()
     );
 
+    // Overlap between operators to add and to remove should fail.
+    let overlap = vec![Keypair::new().pubkey()];
+    let tx = send_update_operator_whitelist(tx_sender, Some(overlap.clone()), Some(overlap));
+    assert_client_err(tx, "Overlapping operators");
+
     let new_authority = Keypair::new();
 
     send_update_program_config(
@@ -481,11 +486,15 @@ fn test_tie_breaker(
     let sleep_duration = vote_expiry_timestamp - current_time + 2;
     thread::sleep(Duration::from_secs(sleep_duration as u64));
 
+    // Invalid tie breaker index should fail.
+    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, 5);
+    assert_client_err(tx, "Invalid ballot index");
+
     // Set tie breaker vote after expiry.
     let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, 0)?;
     let (consensus_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
 
-    // Casting vote after expiry should
+    // Casting vote after expiry should fail.
     let tx_sender = &TxSender {
         program,
         micro_lamports: None,

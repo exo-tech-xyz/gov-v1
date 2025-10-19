@@ -22,6 +22,10 @@ pub fn handler(ctx: Context<SetTieBreaker>, ballot_index: u8) -> Result<()> {
         !ballot_box.has_consensus_reached(),
         ErrorCode::ConsensusReached
     );
+    require!(
+        (ballot_index as usize) < ballot_box.ballot_tallies.len(),
+        ErrorCode::InvalidBallotIndex
+    );
 
     ballot_box.slot_consensus_reached = clock.slot;
     ballot_box.winning_ballot = ballot_box.ballot_tallies[ballot_index as usize]
