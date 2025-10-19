@@ -41,7 +41,7 @@ fn test_program_config(
     assert_eq!(program_config.vote_duration, 0);
 
     // Add operators
-    let operators_to_add: Vec<Pubkey> = context.operators.iter().map(|x| x.pubkey()).collect();
+    let mut operators_to_add: Vec<Pubkey> = context.operators.iter().map(|x| x.pubkey()).collect();
 
     send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None)?;
 
@@ -49,12 +49,21 @@ fn test_program_config(
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.whitelisted_operators, operators_to_add);
 
-    // Add duplicate operators
+    // Add a new operator twice.
+    let new_operator = Keypair::new();
+    operators_to_add.push(new_operator.pubkey());
+    operators_to_add.push(new_operator.pubkey());
     send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None)?;
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
 
-    // No changes should be made
-    assert_eq!(program_config.whitelisted_operators, operators_to_add);
+    // Verify that the new operator is added only once.
+    assert_eq!(
+        program_config.whitelisted_operators.len(),
+        operators_to_add.len() - 1
+    );
+    assert!(program_config
+        .whitelisted_operators
+        .contains(&new_operator.pubkey()));
 
     // Remove operators
     let operators_to_remove = operators_to_add[8..].to_vec();

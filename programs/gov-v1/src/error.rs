@@ -22,4 +22,6 @@ pub enum ErrorCode {
     InvalidMerkleInputs,
     #[msg("Invalid merkle proof")]
     InvalidMerkleProof,
+    #[msg("Vector size exceeded")]
+    VecFull,
 }
