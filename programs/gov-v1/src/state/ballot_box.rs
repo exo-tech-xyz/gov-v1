@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::{MAX_BALLOT_TALLIES, MAX_OPERATOR_VOTES};
+pub const MAX_OPERATOR_VOTES: usize = 64;
+pub const MAX_BALLOT_TALLIES: usize = 64;
 
 #[account]
 #[derive(InitSpace, Debug)]

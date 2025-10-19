@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constants::{MAX_BALLOT_TALLIES, MAX_OPERATOR_VOTES},
     error::ErrorCode,
+    state::ballot_box::{MAX_BALLOT_TALLIES, MAX_OPERATOR_VOTES},
     Ballot, BallotBox, BallotTally, OperatorVote, ProgramConfig,
 };
 
