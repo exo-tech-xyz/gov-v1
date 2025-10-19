@@ -34,6 +34,7 @@ fn test_program_config(
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.authority, program.payer());
+    assert_eq!(program_config.proposed_authority, None);
     assert_eq!(program_config.tie_breaker_admin, Pubkey::default());
     assert_eq!(program_config.whitelisted_operators.len(), 0);
     assert_eq!(program_config.min_consensus_threshold_bps, 0);
@@ -81,7 +82,7 @@ fn test_program_config(
 
     send_update_program_config(
         tx_sender,
-        Some(&new_authority.insecure_clone()),
+        Some(new_authority.pubkey()),
         Some(MIN_CONSENSUS_BPS),
         Some(program.payer()),
         Some(VOTE_DURATION),
@@ -89,7 +90,8 @@ fn test_program_config(
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
-    assert_eq!(program_config.authority, new_authority.pubkey());
+    assert_eq!(program_config.authority, program.payer());
+    assert_eq!(program_config.proposed_authority, Some(new_authority.pubkey()));
     assert_eq!(program_config.tie_breaker_admin, program.payer());
     assert_eq!(
         program_config.whitelisted_operators,
@@ -102,23 +104,35 @@ fn test_program_config(
     assert_eq!(program_config.next_ballot_id, 0);
     assert_eq!(program_config.vote_duration, VOTE_DURATION);
 
-    let tx_sender = &TxSender {
+    // Finalize proposed authority
+    let tx_sender2 = &TxSender {
         program,
         micro_lamports: None,
         payer: &context.payer,
         authority: &new_authority,
     };
+    send_finalize_proposed_authority(tx_sender2)?;
+
+    // Verify values in ProgramConfig
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
+    assert_eq!(program_config.authority, new_authority.pubkey());
+    assert_eq!(program_config.proposed_authority, None);
+
+    // Propose new authority as program payer.
     send_update_program_config(
-        tx_sender,
-        Some(&context.payer.insecure_clone()),
+        tx_sender2,
+        Some(context.payer.pubkey()),
         None,
         None,
         None,
     )?;
+    // Finalize proposed authority.
+    send_finalize_proposed_authority(tx_sender)?;
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.authority, program.payer());
+    assert_eq!(program_config.proposed_authority, None);
     assert_eq!(program_config.tie_breaker_admin, program.payer());
     assert_eq!(
         program_config.whitelisted_operators,

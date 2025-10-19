@@ -100,7 +100,7 @@ pub fn send_update_operator_whitelist(
 
 pub fn send_update_program_config(
     tx_sender: &TxSender,
-    new_authority: Option<&Keypair>,
+    proposed_authority: Option<Pubkey>,
     min_consensus_threshold_bps: Option<u16>,
     tie_breaker_admin: Option<Pubkey>,
     vote_duration: Option<i64>,
@@ -109,19 +109,14 @@ pub fn send_update_program_config(
     let mut accounts = accounts::UpdateProgramConfig {
         authority: tx_sender.authority.pubkey(),
         program_config: ProgramConfig::pda().0,
-        new_authority: None,
     };
-
-    if let Some(kp) = new_authority {
-        accounts.new_authority = Some(kp.pubkey());
-        signers.push(&kp);
-    }
 
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts)
         .args(instruction::UpdateProgramConfig {
+            proposed_authority,
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
@@ -290,6 +285,22 @@ pub fn send_close_meta_merkle_proof(
             system_program: system_program::ID,
         })
         .args(instruction::CloseMetaMerkleProof {})
+        .instructions()?;
+
+    tx_sender.send(ixs)
+}
+
+pub fn send_finalize_proposed_authority(
+    tx_sender: &TxSender,
+) -> Result<Signature, ClientError> {
+    let ixs = tx_sender
+        .program
+        .request()
+        .accounts(accounts::FinalizeProposedAuthority {
+            authority: tx_sender.authority.pubkey(),
+            program_config: ProgramConfig::pda().0,
+        })
+        .args(instruction::FinalizeProposedAuthority {})
         .instructions()?;
 
     tx_sender.send(ixs)
