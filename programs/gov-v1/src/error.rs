@@ -22,4 +22,10 @@ pub enum ErrorCode {
     InvalidMerkleInputs,
     #[msg("Invalid merkle proof")]
     InvalidMerkleProof,
+    #[msg("Vector size exceeded")]
+    VecFull,
+    #[msg("Overlapping operators in add and remove lists")]
+    OverlappingWhitelistEntries,
+    #[msg("Invalid ballot index")]
+    InvalidBallotIndex,
 }

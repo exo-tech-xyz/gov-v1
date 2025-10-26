@@ -3,13 +3,17 @@ use std::collections::HashSet;
 
 use anchor_lang::prelude::*;
 
+const MAX_OPERATOR_WHITELIST: usize = 64;
+
 #[derive(InitSpace, Debug)]
 #[account]
 pub struct ProgramConfig {
     /// Authority allowed to update the config.
     pub authority: Pubkey,
+    /// Authority to be set to upon finalization of proposal.
+    pub proposed_authority: Option<Pubkey>,
     /// Operators whitelisted to participate in voting.
-    #[max_len(64)]
+    #[max_len(MAX_OPERATOR_WHITELIST)]
     pub whitelisted_operators: Vec<Pubkey>,
     /// Min. percentage of votes required to finalize a ballot. Used during BallotBox creation.
     pub min_consensus_threshold_bps: u16,
@@ -34,15 +38,22 @@ impl ProgramConfig {
         }
     }
 
-    pub fn add_operators(&mut self, operators_to_add: Option<Vec<Pubkey>>) {
-        if let Some(operators) = operators_to_add {
-            let existing: HashSet<Pubkey> = self.whitelisted_operators.iter().cloned().collect();
-            for op in operators {
-                if !existing.contains(&op) {
+    // Add operators to the whitelist. Duplicate operators are ignored.
+    pub fn add_operators(&mut self, operators_to_add: Option<Vec<Pubkey>>) -> Result<()> {
+        if let Some(new_operators) = operators_to_add {
+            let mut existing_set: HashSet<Pubkey> =
+                self.whitelisted_operators.iter().cloned().collect();
+            for op in new_operators.into_iter() {
+                if existing_set.insert(op) {
                     self.whitelisted_operators.push(op);
                 }
             }
+            require!(
+                self.whitelisted_operators.len() <= MAX_OPERATOR_WHITELIST,
+                ErrorCode::VecFull
+            );
         }
+        Ok(())
     }
 
     pub fn contains_operator(&self, operator: &Pubkey) -> Result<()> {

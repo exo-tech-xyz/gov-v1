@@ -31,16 +31,22 @@ pub mod gov_v1 {
 
     pub fn update_program_config(
         ctx: Context<UpdateProgramConfig>,
+        proposed_authority: Option<Pubkey>,
         min_consensus_threshold_bps: Option<u16>,
         tie_breaker_admin: Option<Pubkey>,
         vote_duration: Option<i64>,
     ) -> Result<()> {
         update_program_config::handler(
             ctx,
+            proposed_authority,
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
         )
+    }
+
+    pub fn finalize_proposed_authority(ctx: Context<FinalizeProposedAuthority>) -> Result<()> {
+        finalize_proposed_authority::handler(ctx)
     }
 
     pub fn init_ballot_box(ctx: Context<InitBallotBox>) -> Result<()> {

@@ -1,5 +1,8 @@
 use anchor_lang::prelude::*;
 
+pub const MAX_OPERATOR_VOTES: usize = 64;
+pub const MAX_BALLOT_TALLIES: usize = 64;
+
 #[account]
 #[derive(InitSpace, Debug)]
 pub struct BallotBox {
@@ -18,10 +21,10 @@ pub struct BallotBox {
     /// The ballot that got at least min_consensus_threshold of votes
     pub winning_ballot: Ballot,
     /// Operator votes
-    #[max_len(64)]
+    #[max_len(MAX_OPERATOR_VOTES)]
     pub operator_votes: Vec<OperatorVote>,
     /// Mapping of ballots votes to stake weight
-    #[max_len(64)]
+    #[max_len(MAX_BALLOT_TALLIES)]
     pub ballot_tallies: Vec<BallotTally>,
     /// Timestamp when voting ends. Tie breaker admin will decide the results
     /// if no consensus is reached by then.

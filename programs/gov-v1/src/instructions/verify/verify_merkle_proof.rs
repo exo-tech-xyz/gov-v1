@@ -27,7 +27,7 @@ pub fn verify_shared_handler<'info>(
         // root in MetaMerkleLeaf.
         verify_helper(
             leaf_content,
-            proof_vec,
+            &proof_vec,
             Hash::from(meta_merkle_proof.meta_merkle_leaf.stake_merkle_root),
         )?;
     } else if stake_merkle_leaf.is_some() || stake_merkle_proof.is_some() {
@@ -40,7 +40,7 @@ pub fn verify_shared_handler<'info>(
     // root in ConsensusResult.
     verify_helper(
         leaf_content,
-        meta_merkle_proof.meta_merkle_proof.clone(),
+        &meta_merkle_proof.meta_merkle_proof,
         consensus_result.ballot.meta_merkle_root.into(),
     )?;
 

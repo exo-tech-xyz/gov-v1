@@ -1,6 +1,10 @@
 use anchor_lang::prelude::*;
 
-use crate::{error::ErrorCode, Ballot, BallotBox, BallotTally, OperatorVote, ProgramConfig};
+use crate::{
+    error::ErrorCode,
+    state::ballot_box::{MAX_BALLOT_TALLIES, MAX_OPERATOR_VOTES},
+    Ballot, BallotBox, BallotTally, OperatorVote, ProgramConfig,
+};
 
 #[derive(Accounts)]
 pub struct CastVote<'info> {
@@ -54,6 +58,10 @@ pub fn handler(ctx: Context<CastVote>, ballot: Ballot) -> Result<()> {
         tally = 1;
         ballot_index = new_ballot_tally.index;
         ballot_box.ballot_tallies.push(new_ballot_tally);
+        require!(
+            ballot_box.ballot_tallies.len() <= MAX_BALLOT_TALLIES,
+            ErrorCode::VecFull
+        );
     }
 
     // Create a new operator vote for the ballot tally.
@@ -63,6 +71,10 @@ pub fn handler(ctx: Context<CastVote>, ballot: Ballot) -> Result<()> {
         ballot_index,
     };
     ballot_box.operator_votes.push(new_operator_vote);
+    require!(
+        ballot_box.operator_votes.len() <= MAX_OPERATOR_VOTES,
+        ErrorCode::VecFull
+    );
 
     // Set winning ballot if consensus threshold is reached (for first time).
     if !ballot_box.has_consensus_reached() {

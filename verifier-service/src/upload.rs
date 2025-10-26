@@ -13,6 +13,7 @@ use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
 use serde_json::{json, Value};
 use solana_sdk::{hash::hash, pubkey::Pubkey, signature::Signature};
 use sqlx::sqlite::SqlitePool;
+use sqlx::Acquire;
 use tracing::{debug, info};
 
 use crate::database::models::{SnapshotMetaRecord, StakeAccountRecord, VoteAccountRecord};
@@ -103,15 +104,8 @@ async fn index_snapshot_data(
     merkle_root: &str,
     snapshot_hash: &str,
 ) -> Result<()> {
-    // Create snapshot metadata record
-    let snapshot_meta = SnapshotMetaRecord {
-        network: network.to_string(),
-        slot: snapshot.slot,
-        merkle_root: merkle_root.to_string(),
-        snapshot_hash: snapshot_hash.to_string(),
-        created_at: chrono::Utc::now().to_rfc3339(),
-    };
-    snapshot_meta.insert(pool).await?;
+    // Begin transaction for atomic indexing
+    let mut tx = pool.begin().await?;
 
     // Index vote accounts and stake accounts
     for (bundle_idx, bundle) in snapshot.leaf_bundles.iter().enumerate() {
@@ -143,7 +137,7 @@ async fn index_snapshot_data(
             active_stake: meta_leaf.active_stake,
             meta_merkle_proof,
         };
-        vote_account_record.insert(pool).await?;
+        vote_account_record.insert_exec(&mut *tx).await?;
 
         // Generate stake merkle tree under vote account
         let hashed_nodes: Vec<[u8; 32]> = bundle
@@ -170,7 +164,7 @@ async fn index_snapshot_data(
                 stake_merkle_proof,
             };
 
-            stake_account_record.insert(pool).await?;
+            stake_account_record.insert_exec(&mut *tx).await?;
         }
 
         debug!(
@@ -180,6 +174,17 @@ async fn index_snapshot_data(
             bundle.stake_merkle_leaves.len()
         );
     }
+
+    let snapshot_meta = SnapshotMetaRecord {
+        network: network.to_string(),
+        slot: snapshot.slot,
+        merkle_root: merkle_root.to_string(),
+        snapshot_hash: snapshot_hash.to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    snapshot_meta.insert_exec(&mut *tx).await?;
+
+    tx.commit().await?;
 
     info!(
         "Successfully indexed snapshot for slot {} with {} vote accounts",

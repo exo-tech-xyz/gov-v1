@@ -30,11 +30,11 @@ const INTERMEDIATE_PREFIX: &[u8] = &[1];
 /// to reconstruct the parent root.
 ///
 /// Compares the Merkle root with the expected `root` and returns an error if it doesnt match.
-pub fn verify_helper(leaf_content: &[u8], proof_vec: Vec<[u8; 32]>, root: Hash) -> Result<()> {
+pub fn verify_helper(leaf_content: &[u8], proof: &[[u8; 32]], root: Hash) -> Result<()> {
     let mut node = hash_leaf!(leaf_content);
 
-    for proof in proof_vec {
-        let sibling_node = Hash::from(proof);
+    for &p in proof {
+        let sibling_node = Hash::from(p);
 
         if node <= sibling_node {
             node = hash_intermediate!(node, sibling_node)

@@ -34,6 +34,7 @@ fn test_program_config(
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.authority, program.payer());
+    assert_eq!(program_config.proposed_authority, None);
     assert_eq!(program_config.tie_breaker_admin, Pubkey::default());
     assert_eq!(program_config.whitelisted_operators.len(), 0);
     assert_eq!(program_config.min_consensus_threshold_bps, 0);
@@ -41,13 +42,29 @@ fn test_program_config(
     assert_eq!(program_config.vote_duration, 0);
 
     // Add operators
-    let operators_to_add: Vec<Pubkey> = context.operators.iter().map(|x| x.pubkey()).collect();
+    let mut operators_to_add: Vec<Pubkey> = context.operators.iter().map(|x| x.pubkey()).collect();
 
     send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None)?;
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.whitelisted_operators, operators_to_add);
+
+    // Add a new operator twice.
+    let new_operator = Keypair::new();
+    operators_to_add.push(new_operator.pubkey());
+    operators_to_add.push(new_operator.pubkey());
+    send_update_operator_whitelist(tx_sender, Some(operators_to_add.clone()), None)?;
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
+
+    // Verify that the new operator is added only once.
+    assert_eq!(
+        program_config.whitelisted_operators.len(),
+        operators_to_add.len() - 1
+    );
+    assert!(program_config
+        .whitelisted_operators
+        .contains(&new_operator.pubkey()));
 
     // Remove operators
     let operators_to_remove = operators_to_add[8..].to_vec();
@@ -61,11 +78,16 @@ fn test_program_config(
         operators_to_add[..8].to_vec()
     );
 
+    // Overlap between operators to add and to remove should fail.
+    let overlap = vec![Keypair::new().pubkey()];
+    let tx = send_update_operator_whitelist(tx_sender, Some(overlap.clone()), Some(overlap));
+    assert_client_err(tx, "Overlapping operators");
+
     let new_authority = Keypair::new();
 
     send_update_program_config(
         tx_sender,
-        Some(&new_authority.insecure_clone()),
+        Some(new_authority.pubkey()),
         Some(MIN_CONSENSUS_BPS),
         Some(program.payer()),
         Some(VOTE_DURATION),
@@ -73,7 +95,8 @@ fn test_program_config(
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
-    assert_eq!(program_config.authority, new_authority.pubkey());
+    assert_eq!(program_config.authority, program.payer());
+    assert_eq!(program_config.proposed_authority, Some(new_authority.pubkey()));
     assert_eq!(program_config.tie_breaker_admin, program.payer());
     assert_eq!(
         program_config.whitelisted_operators,
@@ -86,23 +109,35 @@ fn test_program_config(
     assert_eq!(program_config.next_ballot_id, 0);
     assert_eq!(program_config.vote_duration, VOTE_DURATION);
 
-    let tx_sender = &TxSender {
+    // Finalize proposed authority
+    let tx_sender2 = &TxSender {
         program,
         micro_lamports: None,
         payer: &context.payer,
         authority: &new_authority,
     };
+    send_finalize_proposed_authority(tx_sender2)?;
+
+    // Verify values in ProgramConfig
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
+    assert_eq!(program_config.authority, new_authority.pubkey());
+    assert_eq!(program_config.proposed_authority, None);
+
+    // Propose new authority as program payer.
     send_update_program_config(
-        tx_sender,
-        Some(&context.payer.insecure_clone()),
+        tx_sender2,
+        Some(context.payer.pubkey()),
         None,
         None,
         None,
     )?;
+    // Finalize proposed authority.
+    send_finalize_proposed_authority(tx_sender)?;
 
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.authority, program.payer());
+    assert_eq!(program_config.proposed_authority, None);
     assert_eq!(program_config.tie_breaker_admin, program.payer());
     assert_eq!(
         program_config.whitelisted_operators,
@@ -465,11 +500,15 @@ fn test_tie_breaker(
     let sleep_duration = vote_expiry_timestamp - current_time + 2;
     thread::sleep(Duration::from_secs(sleep_duration as u64));
 
+    // Invalid tie breaker index should fail.
+    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, 5);
+    assert_client_err(tx, "Invalid ballot index");
+
     // Set tie breaker vote after expiry.
     let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, 0)?;
     let (consensus_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
 
-    // Casting vote after expiry should
+    // Casting vote after expiry should fail.
     let tx_sender = &TxSender {
         program,
         micro_lamports: None,

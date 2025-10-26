@@ -1,10 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use flate2::{write::GzEncoder, Compression};
 use gov_v1::{MetaMerkleLeaf, StakeMerkleLeaf};
+use crate::utils::{decompress_gzip_with_limit, max_snapshot_bytes, read_all_with_limit};
 use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
 use solana_sdk::hash::{hash, Hash};
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
@@ -32,12 +33,16 @@ impl MetaMerkleSnapshot {
         buf: Vec<u8>,
         is_compressed: bool,
     ) -> io::Result<(Self, Hash)> {
+        let max_size = max_snapshot_bytes();
         let decompressed_buf = if is_compressed {
-            let mut decoder = GzDecoder::new(&buf[..]);
-            let mut decompressed = Vec::new();
-            decoder.read_to_end(&mut decompressed)?;
-            decompressed
+            decompress_gzip_with_limit(&buf[..], max_size)?
         } else {
+            if buf.len() > max_size {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "payload too large",
+                ));
+            }
             buf
         };
 
@@ -48,29 +53,24 @@ impl MetaMerkleSnapshot {
     }
 
     pub fn read(path: PathBuf, is_compressed: bool) -> io::Result<Self> {
-        let mut file = File::open(path)?;
-        let mut buf = Vec::new();
-
-        if is_compressed {
-            let mut decoder = GzDecoder::new(file);
-            decoder.read_to_end(&mut buf)?;
+        let max_size = max_snapshot_bytes();
+        let file = File::open(path)?;
+        let buf = if is_compressed {
+            decompress_gzip_with_limit(file, max_size)?
         } else {
-            file.read_to_end(&mut buf)?;
-        }
+            read_all_with_limit(file, max_size)?
+        };
 
         Self::try_from_slice(&buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
     pub fn snapshot_hash(path: PathBuf, is_compressed: bool) -> io::Result<Hash> {
-        let mut file = File::open(path)?;
-        let mut buf = Vec::new();
-
-        if is_compressed {
-            let mut decoder = GzDecoder::new(file);
-            decoder.read_to_end(&mut buf)?;
+        let file = File::open(path)?;
+        let buf = if is_compressed {
+            decompress_gzip_with_limit(file, max_snapshot_bytes())?
         } else {
-            file.read_to_end(&mut buf)?;
-        }
+            read_all_with_limit(file, max_snapshot_bytes())?
+        };
 
         Ok(hash(&buf))
     }
