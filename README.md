@@ -138,7 +138,7 @@ RUST_LOG=info cargo run --bin cli -- \
   update-operator-whitelist -a key1,key2,key3 -r key4,key5
 
 # Update config (all arguments are optional):
-# threshold, vote duration, tie-breaker-admin, new admin authority
+# threshold, vote duration, tie-breaker-admin, proposed authority (two-step)
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
@@ -147,7 +147,14 @@ RUST_LOG=info cargo run --bin cli -- \
   --min-consensus-threshold-bps 6000 \
   --vote-duration 180 \
   --tie-breaker-admin key1 \
-  --new-authority-path ~/.config/solana/id.json
+  --proposed-authority <NEW_ADMIN_PUBKEY>
+
+# Finalize proposed authority (run as the proposed authority)
+RUST_LOG=info cargo run --bin cli -- \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path <PATH_TO_PROPOSED_AUTHORITY_KEYPAIR> \
+  --rpc-url https://api.devnet.solana.com \
+  finalize-proposed-authority
 ```
 
 ---

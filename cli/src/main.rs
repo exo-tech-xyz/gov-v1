@@ -111,7 +111,7 @@ pub enum Commands {
     },
     UpdateProgramConfig {
         #[arg(long, env)]
-        new_authority_path: Option<String>,
+        proposed_authority: Option<Pubkey>,
 
         #[arg(long)]
         min_consensus_threshold_bps: Option<u16>,
@@ -122,6 +122,7 @@ pub enum Commands {
         #[arg(long)]
         vote_duration: Option<i64>,
     },
+    FinalizeProposedAuthority {},
     InitBallotBox {},
     FinalizeBallot {
         #[arg(long, help = "Id of ballot box")]
@@ -285,7 +286,7 @@ fn main() -> Result<()> {
             info!("Transaction sent: {}", tx);
         }
         Commands::UpdateProgramConfig {
-            new_authority_path,
+            proposed_authority,
             min_consensus_threshold_bps,
             tie_breaker_admin,
             vote_duration,
@@ -295,8 +296,6 @@ fn main() -> Result<()> {
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
-            let new_auth_kp = new_authority_path.map(|path| read_keypair_file(&path).unwrap());
-            let new_authority = new_auth_kp.as_ref();
 
             let tx_sender = &TxSender {
                 program: &program,
@@ -306,11 +305,27 @@ fn main() -> Result<()> {
             };
             let tx = send_update_program_config(
                 tx_sender,
-                new_authority,
+                proposed_authority,
                 min_consensus_threshold_bps,
                 tie_breaker_admin,
                 vote_duration,
             )?;
+            info!("Transaction sent: {}", tx);
+        }
+        Commands::FinalizeProposedAuthority {} => {
+            info!("FinalizeProposedAuthority...");
+
+            let payer = read_keypair_file(&cli.payer_path).unwrap();
+            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let program = load_client_program(&payer, cli.rpc_url);
+
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
+            let tx = send_finalize_proposed_authority(tx_sender)?;
             info!("Transaction sent: {}", tx);
         }
         Commands::InitBallotBox {} => {

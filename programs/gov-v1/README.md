@@ -21,19 +21,20 @@ This program enables whitelisted operators to vote on stake distribution snapsho
 
 ### Instruction Set
 
-| Instruction Name            | Signer                                | Description                                                                                               |
-| --------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `init_program_config`       | Admin                                 | Initializes a default `ProgramConfig` account. All configs except `authority` needs to be set separately. |
-| `update_program_config`     | Admin                                 | Updates `ProgramConfig` parameters.                                                                       |
-| `update_operator_whitelist` | Admin                                 | Adds or removes operators from the whitelist in `ProgramConfig`.                                          |
-| `init_ballot_box`           | Operator                              | Initializes a new `BallotBox` for a snapshot selection vote.                                              |
-| `cast_vote`                 | Operator                              | Casts a vote in a `BallotBox` for a specific `Ballot`.                                                    |
-| `remove_vote`               | Operator                              | Removes a previously casted vote                                                                          |
-| `finalize_ballot`           | Any (payer)                           | Creates a `ConsensusResult` after consensus is reached for a `BallotBox`                                  |
-| `set_tie_breaker`           | Tie Breaker Admin                     | Allows the tie breaker admin to select a winning ballot if consensus is not reached by expiry.            |
-| `init_meta_merkle_proof`    | Any (payer)                           | Initializes a `MetaMerkleProof` account to store proof and merkle leaf for a vote account.                |
-| `verify_merkle_proof`       | Permissionless                        | Verifies that a stake or vote account leaf is included in the `ConsensusResult` merkle root               |
-| `close_meta_merkle_proof`   | Creator (permissionless after expiry) | Closes a `MetaMerkleProof` account                                                                        |
+| Instruction Name              | Signer                                | Description                                                                                               |
+| ----------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `init_program_config`         | Admin                                 | Initializes a default `ProgramConfig` account. All configs except `authority` needs to be set separately. |
+| `update_program_config`       | Admin                                 | Updates `ProgramConfig` parameters.                                                                       |
+| `finalize_proposed_authority` | Proposed Authority                    | Finalizes the proposed authority.                                                                         |
+| `update_operator_whitelist`   | Admin                                 | Adds or removes operators from the whitelist in `ProgramConfig`.                                          |
+| `init_ballot_box`             | Operator                              | Initializes a new `BallotBox` for a snapshot selection vote.                                              |
+| `cast_vote`                   | Operator                              | Casts a vote in a `BallotBox` for a specific `Ballot`.                                                    |
+| `remove_vote`                 | Operator                              | Removes a previously casted vote                                                                          |
+| `finalize_ballot`             | Any (payer)                           | Creates a `ConsensusResult` after consensus is reached for a `BallotBox`                                  |
+| `set_tie_breaker`             | Tie Breaker Admin                     | Allows the tie breaker admin to select a winning ballot if consensus is not reached by expiry.            |
+| `init_meta_merkle_proof`      | Any (payer)                           | Initializes a `MetaMerkleProof` account to store proof and merkle leaf for a vote account.                |
+| `verify_merkle_proof`         | Permissionless                        | Verifies that a stake or vote account leaf is included in the `ConsensusResult` merkle root               |
+| `close_meta_merkle_proof`     | Creator (permissionless after expiry) | Closes a `MetaMerkleProof` account                                                                        |
 
 ## Design Constraints and Considerations
 

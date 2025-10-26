@@ -10,6 +10,8 @@ const MAX_OPERATOR_WHITELIST: usize = 64;
 pub struct ProgramConfig {
     /// Authority allowed to update the config.
     pub authority: Pubkey,
+    /// Authority to be set to upon finalization of proposal.
+    pub proposed_authority: Option<Pubkey>,
     /// Operators whitelisted to participate in voting.
     #[max_len(MAX_OPERATOR_WHITELIST)]
     pub whitelisted_operators: Vec<Pubkey>,
