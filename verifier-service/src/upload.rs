@@ -11,7 +11,7 @@ use axum::{
 use cli::MetaMerkleSnapshot;
 use meta_merkle_tree::{merkle_tree::MerkleTree, utils::get_proof};
 use serde_json::{json, Value};
-use solana_sdk::{hash::hash, pubkey::Pubkey, signature::Signature};
+use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use sqlx::sqlite::SqlitePool;
 use sqlx::Acquire;
 use tracing::{debug, info};
