@@ -107,6 +107,7 @@ async fn main() -> anyhow::Result<()> {
 
         let public_router = Router::new()
             .route("/healthz", get(health_check))
+            .route("/version", get(get_version))
             .route("/meta", get(get_meta))
             .route("/voter/{voting_wallet}", get(get_voter_summary))
             .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
@@ -141,6 +142,20 @@ async fn main() -> anyhow::Result<()> {
 
 async fn health_check() -> &'static str {
     "ok"
+}
+
+async fn get_version() -> Json<serde_json::Value> {
+    let name = env!("CARGO_PKG_NAME");
+    let version = env!("CARGO_PKG_VERSION");
+    let git_hash = option_env!("VERIFIER_BUILD_GIT_HASH").unwrap_or("unknown");
+    let build_time = option_env!("VERIFIER_BUILD_TIME_UNIX").unwrap_or("unknown");
+
+    Json(json!({
+        "name": name,
+        "version": version,
+        "git_hash": git_hash,
+        "build_time_unix": build_time,
+    }))
 }
 
 async fn admin_stats(headers: HeaderMap) -> Result<Json<serde_json::Value>, StatusCode> {
