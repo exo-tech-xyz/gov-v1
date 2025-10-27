@@ -48,6 +48,7 @@ From the instance:
 
 ```bash
 curl -i http://127.0.0.1/healthz
+curl -i http://127.0.0.1/version
 sudo docker ps
 sudo docker logs --tail=200 verifier
 ```
@@ -56,6 +57,7 @@ From your workstation (replace with your public DNS/IP):
 
 ```bash
 curl -i http://<EC2_PUBLIC_DNS>/healthz
+curl -i http://<EC2_PUBLIC_DNS>/version
 ```
 
 Example public DNS: `ec2-18-221-54-191.us-east-2.compute.amazonaws.com`
@@ -165,6 +167,7 @@ This pulls the new image, removes any existing `verifier` container, and starts 
 
 ```bash
 curl -i http://127.0.0.1/healthz
+curl -i http://127.0.0.1/version
 sudo docker ps
 sudo docker logs --tail=200 verifier
 ```

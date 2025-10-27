@@ -28,6 +28,7 @@ DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
 
 - `POST /upload` - Upload and index Merkle snapshots
 - `GET /healthz` - Health check
+- `GET /version` - Service version and build info (crate version, git hash)
 - `GET /meta` - Metadata for most recent snapshot
 - `GET /voter/:voting_wallet` - Get vote and stake account summaries
 - `GET /proof/vote_account/:vote_account` - Get Merkle proof for vote account
@@ -92,6 +93,9 @@ docker run --rm -p 3000:3000 \
 
 # 4) Health check
 curl -i http://localhost:3000/healthz
+
+# 4b) Version check
+curl -s http://localhost:3000/version
 
 # 5) Publish image to Docker Hub
 docker login # login to docker hub if needed
@@ -256,6 +260,12 @@ select * from stake_accounts limit 10;
 
 ```bash
 curl -i http://localhost:3000/healthz
+```
+
+### Version
+
+```bash
+curl -i http://localhost:3000/version
 ```
 
 ## Dependencies
