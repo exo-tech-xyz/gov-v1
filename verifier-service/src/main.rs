@@ -7,7 +7,7 @@ mod utils;
 
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, Method, header},
     response::Json,
     routing::{get, post},
     Router,
@@ -19,6 +19,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+use tower_http::cors::{CorsLayer, Any};
 use tracing::{debug, info, Level};
 use types::{NetworkQuery, VoterQuery};
 use upload::handle_upload;
@@ -93,20 +94,29 @@ async fn main() -> anyhow::Result<()> {
 
         let body_limit = env_parse::<u64>("UPLOAD_BODY_LIMIT", DEFAULT_BODY_LIMIT as u64) as usize;
 
+        // CORS: Allowed for public endpoints only
+        let public_cors = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods([Method::GET, Method::OPTIONS]);
+
         let upload_router = Router::new()
             .route("/", post(handle_upload))
             .layer(DefaultBodyLimit::max(body_limit))
             .layer(axum::middleware::from_fn(inject_client_ip))
             .layer(GovernorLayer { config: upload_rl });
 
-        Router::new()
+        let public_router = Router::new()
             .route("/healthz", get(health_check))
             .route("/meta", get(get_meta))
-            .route("/admin/stats", get(admin_stats))
-            .nest("/upload", upload_router)
             .route("/voter/{voting_wallet}", get(get_voter_summary))
             .route("/proof/vote_account/{vote_account}", get(get_vote_proof))
             .route("/proof/stake_account/{stake_account}", get(get_stake_proof))
+            .layer(public_cors);
+
+        Router::new()
+            .merge(public_router)
+            .nest("/upload", upload_router)
+            .route("/admin/stats", get(admin_stats))
             .layer(axum::middleware::from_fn(inject_client_ip))
             .layer(
                 TraceLayer::new_for_http()
