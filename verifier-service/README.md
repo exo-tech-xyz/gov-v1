@@ -69,7 +69,12 @@ TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111 \
 cargo test --bin verifier-service
 ```
 
-## Build and Run Docker (using local binary on Linux)
+## Build and Release Docker Image (using local binary on Linux)
+
+Prepare for release:
+
+- Ensure that **version** in Cargo.toml is updated.
+- Ensure that all changes are committed to git.
 
 ```bash
 # 1) Build the binary locally
