@@ -144,3 +144,32 @@ sudo rm -f /usr/local/bin/verifier-cleanup-sql.sh
 # If a cleanup is currently running, stop it
 pgrep -fa 'verifier-cleanup-sql.sh|sqlite3' | awk '{print $1}' | xargs -r sudo kill
 ```
+
+### 9) Upgrade using setup.sh (recommended)
+
+If you deployed with `verifier-service/src/scripts/setup.sh`, upgrading is just editing the image tag and re-running the script. The data volume at `/srv/verifier/data` is preserved.
+
+1. Update the image tag in the script
+
+Edit `verifier-service/src/scripts/setup.sh` and set the new published tag:
+
+```bash
+IMAGE="username/verifier-service:v0.1.1"
+```
+
+2. Re-run the script on the server
+
+This pulls the new image, removes any existing `verifier` container, and starts the new one with the same env vars and volume.
+
+3. Verify the upgrade
+
+```bash
+curl -i http://127.0.0.1/healthz
+sudo docker ps
+sudo docker logs --tail=200 verifier
+```
+
+Notes:
+
+- No changes are required for the cleanup cron; it runs on the host and continues to manage `/srv/verifier/data/governance.db`.
+- For zero-downtime, you can adapt the script to start a secondary container (different port) and flip traffic via a proxy/ALB once healthy.
