@@ -87,8 +87,9 @@ docker build -f verifier-service/Dockerfile -t verifier-service:local .
 # 3) Run the container (persists DB to ./data)
 docker run --rm -p 3000:3000 \
   -e OPERATOR_PUBKEY="$OPERATOR_PUBKEY" \
+  -e METRICS_AUTH_TOKEN="$METRICS_AUTH_TOKEN" \
   -e RUST_LOG=info \
-  -v $(pwd)/data:/data \
+  -v "$(pwd)/data:/data" \
   verifier-service:local
 
 # 4) Health check
