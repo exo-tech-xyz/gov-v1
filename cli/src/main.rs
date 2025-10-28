@@ -14,14 +14,8 @@ use gov_v1::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig}
 use log::info;
 use solana_sdk::signer::Signer;
 use std::path::PathBuf;
-use std::{
-    collections::HashMap,
-    fs,
-    process::Command,
-    thread,
-    time::Duration,
-};
 use std::sync::Arc;
+use std::{collections::HashMap, fs, process::Command, thread, time::Duration};
 use tip_router_operator_cli::{
     cli::SnapshotPaths,
     ledger_utils::{get_bank_from_ledger, get_bank_from_snapshot_at_slot},
@@ -129,9 +123,6 @@ pub enum Commands {
 
         #[arg(long, help = "Path to live ledger directory (-l)")]
         ledger_path: PathBuf,
-
-        #[arg(long, default_value_t = false, help = "Test mode: run 'help' and skip snapshot")]
-        test_mode: bool,
     },
     InitProgramConfig {},
     UpdateOperatorWhitelist {
@@ -204,12 +195,9 @@ pub enum Commands {
 }
 
 fn main() -> Result<()> {
-    // Initialize logger for info! output when not using println!
-    let _ = env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info"),
-    )
-    .is_test(false)
-    .try_init();
+    let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .is_test(false)
+        .try_init();
 
     let runtime = Builder::new_multi_thread().enable_all().build()?;
     let _enter = runtime.enter();
@@ -540,7 +528,6 @@ fn main() -> Result<()> {
             backup_ledger_dir,
             agave_ledger_tool_path,
             ledger_path,
-            test_mode,
         } => {
             info!(
                 "ScanSnapshots starting: scan_interval={}m target_slot={} snapshot_dir={:?} backup_snapshot_dir={:?} backup_ledger_dir={:?}",
@@ -571,39 +558,6 @@ fn main() -> Result<()> {
                 let start = parts.next()?.parse::<u64>().ok()?;
                 let end = parts.next()?.parse::<u64>().ok()?;
                 Some((start, end))
-            }
-
-            // If in test mode, create dummy snapshot files to trigger the flow
-            if test_mode {
-                fs::create_dir_all(&snapshots_dir)?;
-                let start_slot = slot.saturating_sub(100);
-                let end_before = slot.saturating_sub(50);
-                let end_after = slot.saturating_add(10);
-                let full_name = format!("snapshot-{}-dummy.tar.zst", start_slot);
-                let incr_before_name = format!(
-                    "incremental-snapshot-{}-{}-dummy-before.tar.zst",
-                    start_slot, end_before
-                );
-                let incr_after_name = format!(
-                    "incremental-snapshot-{}-{}-dummy-after.tar.zst",
-                    start_slot, end_after
-                );
-                let full_path = snapshots_dir.join(&full_name);
-                let incr_before_path = snapshots_dir.join(&incr_before_name);
-                let incr_after_path = snapshots_dir.join(&incr_after_name);
-                if !full_path.exists() {
-                    fs::write(&full_path, b"dummy full snapshot")?;
-                }
-                if !incr_before_path.exists() {
-                    fs::write(&incr_before_path, b"dummy incremental snapshot <= target")?;
-                }
-                if !incr_after_path.exists() {
-                    fs::write(&incr_after_path, b"dummy incremental snapshot >= target")?;
-                }
-                info!(
-                    "Test mode: created dummy files {:?}, {:?} and {:?}",
-                    full_path, incr_before_path, incr_after_path
-                );
             }
 
             // Loop until we find a matching pair of snapshot files
@@ -637,10 +591,13 @@ fn main() -> Result<()> {
                                 // Track the largest end <= target_slot across all incrementals
                                 if end <= slot {
                                     match best_le {
-                                        None => best_le = Some((start, end, name.clone(), entry.path())),
+                                        None => {
+                                            best_le = Some((start, end, name.clone(), entry.path()))
+                                        }
                                         Some((_, cur_end, _, _)) => {
                                             if end > cur_end {
-                                                best_le = Some((start, end, name.clone(), entry.path()));
+                                                best_le =
+                                                    Some((start, end, name.clone(), entry.path()));
                                             }
                                         }
                                     }
@@ -685,70 +642,54 @@ fn main() -> Result<()> {
                         fs::copy(full_path, &dest_full)?;
                         fs::copy(&incr_path, &dest_incr)?;
 
-                        if test_mode {
-                            info!(
-                                "Test mode: running '{}' help and skipping snapshot",
-                                agave_ledger_tool_path.display()
-                            );
-                            let status = Command::new(&agave_ledger_tool_path)
-                                .arg("help")
-                                .status()?;
-                            if !status.success() {
-                                return Err(anyhow!(
-                                    "agave-ledger-tool help failed with status: {}",
-                                    status
-                                ));
-                            }
-                        } else {
-                            // Run agave-ledger-tool to copy ledger range
-                            let end_copy_slot = slot.saturating_add(32);
-                            info!(
-                                "Running agave-ledger-tool: {} blockstore --ignore-ulimit-nofile-error -l {:?} copy --starting-slot {} --ending-slot {} --target-ledger {:?}",
-                                agave_ledger_tool_path.display(),
-                                ledger_path,
-                                start_slot,
-                                end_copy_slot,
-                                backup_ledger_dir
-                            );
-                            let status = Command::new(&agave_ledger_tool_path)
-                                .arg("blockstore")
-                                .arg("--ignore-ulimit-nofile-error")
-                                .arg("-l")
-                                .arg(&ledger_path)
-                                .arg("copy")
-                                .arg("--starting-slot")
-                                .arg(start_slot.to_string())
-                                .arg("--ending-slot")
-                                .arg(end_copy_slot.to_string())
-                                .arg("--target-ledger")
-                                .arg(&backup_ledger_dir)
-                                .status()?;
-                            if !status.success() {
-                                return Err(anyhow!(
-                                    "agave-ledger-tool failed with status: {}",
-                                    status
-                                ));
-                            }
-
-                            // Trigger snapshot using same flow as SnapshotSlot
-                            info!(
-                                "Starting snapshot at slot {} using backup ledger and snapshots dir...",
-                                slot
-                            );
-                            let save_snapshot = true;
-                            let account_paths = vec![backup_ledger_dir.clone()];
-                            get_bank_from_ledger(
-                                cli.operator_address,
-                                &backup_ledger_dir,
-                                account_paths,
-                                backup_snapshots_dir.clone(),
-                                backup_snapshots_dir.clone(),
-                                &slot,
-                                save_snapshot,
-                                backup_snapshots_dir.clone(),
-                                &cli.cluster,
-                            );
+                        // Run agave-ledger-tool to copy ledger range
+                        let end_copy_slot = slot.saturating_add(32);
+                        info!(
+                            "Running agave-ledger-tool: {} blockstore --ignore-ulimit-nofile-error -l {:?} copy --starting-slot {} --ending-slot {} --target-ledger {:?}",
+                            agave_ledger_tool_path.display(),
+                            ledger_path,
+                            start_slot,
+                            end_copy_slot,
+                            backup_ledger_dir
+                        );
+                        let status = Command::new(&agave_ledger_tool_path)
+                            .arg("blockstore")
+                            .arg("--ignore-ulimit-nofile-error")
+                            .arg("-l")
+                            .arg(&ledger_path)
+                            .arg("copy")
+                            .arg("--starting-slot")
+                            .arg(start_slot.to_string())
+                            .arg("--ending-slot")
+                            .arg(end_copy_slot.to_string())
+                            .arg("--target-ledger")
+                            .arg(&backup_ledger_dir)
+                            .status()?;
+                        if !status.success() {
+                            return Err(anyhow!(
+                                "agave-ledger-tool failed with status: {}",
+                                status
+                            ));
                         }
+
+                        // Trigger snapshot using same flow as SnapshotSlot
+                        info!(
+                            "Starting snapshot at slot {} using backup ledger and snapshots dir...",
+                            slot
+                        );
+                        let save_snapshot = true;
+                        let account_paths = vec![backup_ledger_dir.clone()];
+                        get_bank_from_ledger(
+                            cli.operator_address,
+                            &backup_ledger_dir,
+                            account_paths,
+                            backup_snapshots_dir.clone(),
+                            backup_snapshots_dir.clone(),
+                            &slot,
+                            save_snapshot,
+                            backup_snapshots_dir.clone(),
+                            &cli.cluster,
+                        );
 
                         info!("Completed ScanSnapshots flow. Exiting.");
                         break;
