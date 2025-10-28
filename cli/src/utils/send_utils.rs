@@ -105,8 +105,8 @@ pub fn send_update_program_config(
     tie_breaker_admin: Option<Pubkey>,
     vote_duration: Option<i64>,
 ) -> Result<Signature, ClientError> {
-    let mut signers = vec![tx_sender.payer, tx_sender.authority];
-    let mut accounts = accounts::UpdateProgramConfig {
+    let signers = vec![tx_sender.payer, tx_sender.authority];
+    let accounts = accounts::UpdateProgramConfig {
         authority: tx_sender.authority.pubkey(),
         program_config: ProgramConfig::pda().0,
     };
