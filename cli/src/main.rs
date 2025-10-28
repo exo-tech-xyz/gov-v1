@@ -102,7 +102,7 @@ pub enum Commands {
         #[arg(long, default_value = "true")]
         is_compressed: bool,
     },
-    ScanSnapshots {
+    AwaitSnapshot {
         #[arg(long, help = "Scan interval in minutes")]
         scan_interval: u64,
 
@@ -520,7 +520,7 @@ fn main() -> Result<()> {
             println!("Merkle Root: {}", encoded_root);
             println!("Snapshot Hash: {}", encoded_hash);
         }
-        Commands::ScanSnapshots {
+        Commands::AwaitSnapshot {
             scan_interval,
             slot,
             snapshots_dir,
@@ -530,7 +530,7 @@ fn main() -> Result<()> {
             ledger_path,
         } => {
             info!(
-                "ScanSnapshots starting: scan_interval={}m target_slot={} snapshot_dir={:?} backup_snapshot_dir={:?} backup_ledger_dir={:?}",
+                "AwaitSnapshot starting: scan_interval={}m target_slot={} snapshot_dir={:?} backup_snapshot_dir={:?} backup_ledger_dir={:?}",
                 scan_interval,
                 slot,
                 snapshots_dir,
@@ -674,7 +674,7 @@ fn main() -> Result<()> {
                             &cli.cluster,
                         );
 
-                        info!("Completed ScanSnapshots flow. Exiting.");
+                        info!("Completed AwaitSnapshot flow. Exiting.");
                         break;
                     } else {
                         info!(
