@@ -37,3 +37,25 @@ pub enum LogType {
     ConsensusResult,
     MetaMerkleProof,
 }
+
+// Snapshot filename parsers
+pub fn parse_full_snapshot_start_slot(name: &str) -> Option<u64> {
+    if !name.starts_with("snapshot-") || !name.ends_with(".tar.zst") {
+        return None;
+    }
+    let trimmed = &name["snapshot-".len()..name.len() - ".tar.zst".len()];
+    let mut parts = trimmed.splitn(2, '-');
+    let start = parts.next()?;
+    start.parse::<u64>().ok()
+}
+
+pub fn parse_incremental_snapshot_slots(name: &str) -> Option<(u64, u64)> {
+    if !name.starts_with("incremental-snapshot-") || !name.ends_with(".tar.zst") {
+        return None;
+    }
+    let trimmed = &name["incremental-snapshot-".len()..name.len() - ".tar.zst".len()];
+    let mut parts = trimmed.splitn(3, '-');
+    let start = parts.next()?.parse::<u64>().ok()?;
+    let end = parts.next()?.parse::<u64>().ok()?;
+    Some((start, end))
+}
