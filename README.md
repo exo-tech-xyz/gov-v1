@@ -205,7 +205,27 @@ cargo run --release --bin cli -- \
 RUST_LOG=info cargo run --bin cli -- --authority-path ~/.config/solana/id.json log-meta-merkle-hash  --read-path ./meta_merkle-367628001.zip --is-compressed
 ```
 
----
+#### Await Snapshot (RECOMMENDED)
+
+Waits until the target slot is passed (by observing on-disk snapshots on specificed interval), backups snapshot, incremental snapshot and ledger into specified directories, and initiates snapshot creation for that slot.
+
+This is recommended as 1) no slot watching and manual invocation is required when target slot has passed, 2) ledger replay is kept to a minimum, and 3) allows manual snapshot generation from backup files on failure.
+
+Example:
+
+```bash
+RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
+RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
+cargo run --release --bin cli -- \
+  scan-snapshots \
+  --scan-interval 5 \
+  --slot 368478463 \
+  --snapshots-dir /mnt/ledger/snapshots \
+  --backup-snapshots-dir /mnt/ledger/gov-backup-snapshots \
+  --backup-ledger-dir /mnt/ledger/gov-ledger-backup \
+  --agave-ledger-tool-path /home/jito/agave/target/release/agave-ledger-tool \
+  --ledger-path /mnt/ledger
+```
 
 ### Log On-Chain State
 
