@@ -217,8 +217,8 @@ Example:
 RUSTFLAGS="-C target-cpu=native" RAYON_NUM_THREADS=$(nproc) ZSTD_NBTHREADS=$(nproc) \
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn \
 cargo run --release --bin cli -- \
-  scan-snapshots \
-  --scan-interval 5 \
+  await-snapshot \
+  --scan-interval 1 \
   --slot 368478463 \
   --snapshots-dir /mnt/ledger/snapshots \
   --backup-snapshots-dir /mnt/ledger/gov-backup-snapshots \
