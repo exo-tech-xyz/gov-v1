@@ -538,33 +538,16 @@ fn main() -> Result<()> {
                 backup_ledger_dir
             );
 
-            // Helper parsers
-            fn parse_full_snapshot_start_slot(name: &str) -> Option<u64> {
-                if !name.starts_with("snapshot-") || !name.ends_with(".tar.zst") {
-                    return None;
-                }
-                let trimmed = &name["snapshot-".len()..name.len() - ".tar.zst".len()];
-                let mut parts = trimmed.splitn(2, '-');
-                let start = parts.next()?;
-                start.parse::<u64>().ok()
-            }
-
-            fn parse_incremental_snapshot_slots(name: &str) -> Option<(u64, u64)> {
-                if !name.starts_with("incremental-snapshot-") || !name.ends_with(".tar.zst") {
-                    return None;
-                }
-                let trimmed = &name["incremental-snapshot-".len()..name.len() - ".tar.zst".len()];
-                let mut parts = trimmed.splitn(3, '-');
-                let start = parts.next()?.parse::<u64>().ok()?;
-                let end = parts.next()?.parse::<u64>().ok()?;
-                Some((start, end))
-            }
-
             // Loop until we find a matching pair of snapshot files
             let sleep_duration = Duration::from_secs(scan_interval.saturating_mul(60));
             loop {
+                // Map of full snapshots by start slot: (start_slot, (name, path))
                 let mut full_by_start: HashMap<u64, (String, PathBuf)> = HashMap::new();
-                let mut best_le: Option<(u64, u64, String, PathBuf)> = None; // (start, end, name, path)
+
+                // Best matching incremental snapshot: (start_slot, end_slot, name, path)
+                let mut best_le: Option<(u64, u64, String, PathBuf)> = None;
+
+                // Flag to track if the target slot has elapsed
                 let mut exists_ge: bool = false;
 
                 match fs::read_dir(&snapshots_dir) {
@@ -642,7 +625,7 @@ fn main() -> Result<()> {
                         fs::copy(full_path, &dest_full)?;
                         fs::copy(&incr_path, &dest_incr)?;
 
-                        // Run agave-ledger-tool to copy ledger range
+                        // Run agave-ledger-tool to copy ledger into backup directory
                         let end_copy_slot = slot.saturating_add(32);
                         info!(
                             "Running agave-ledger-tool: {} blockstore --ignore-ulimit-nofile-error -l {:?} copy --starting-slot {} --ending-slot {} --target-ledger {:?}",
@@ -672,7 +655,7 @@ fn main() -> Result<()> {
                             ));
                         }
 
-                        // Trigger snapshot using same flow as SnapshotSlot
+                        // Trigger snapshot creation using same flow as SnapshotSlot
                         info!(
                             "Starting snapshot at slot {} using backup ledger and snapshots dir...",
                             slot
