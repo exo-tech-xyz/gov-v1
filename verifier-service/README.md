@@ -28,6 +28,7 @@ DB_PATH=":memory:" RUST_LOG=info cargo run --bin verifier-service
 
 - `POST /upload` - Upload and index Merkle snapshots
 - `GET /healthz` - Health check
+- `GET /version` - Service version and build info (crate version, git hash)
 - `GET /meta` - Metadata for most recent snapshot
 - `GET /voter/:voting_wallet` - Get vote and stake account summaries
 - `GET /proof/vote_account/:vote_account` - Get Merkle proof for vote account
@@ -69,7 +70,12 @@ TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111 \
 cargo test --bin verifier-service
 ```
 
-## Build and Run Docker (using local binary on Linux)
+## Build and Release Docker Image (using local binary on Linux)
+
+Prepare for release:
+
+- Ensure that **version** in Cargo.toml is updated.
+- Ensure that all changes are committed to git.
 
 ```bash
 # 1) Build the binary locally
@@ -81,12 +87,16 @@ docker build -f verifier-service/Dockerfile -t verifier-service:local .
 # 3) Run the container (persists DB to ./data)
 docker run --rm -p 3000:3000 \
   -e OPERATOR_PUBKEY="$OPERATOR_PUBKEY" \
+  -e METRICS_AUTH_TOKEN="$METRICS_AUTH_TOKEN" \
   -e RUST_LOG=info \
-  -v $(pwd)/data:/data \
+  -v "$(pwd)/data:/data" \
   verifier-service:local
 
 # 4) Health check
 curl -i http://localhost:3000/healthz
+
+# 4b) Version check
+curl -s http://localhost:3000/version
 
 # 5) Publish image to Docker Hub
 docker login # login to docker hub if needed
@@ -251,6 +261,12 @@ select * from stake_accounts limit 10;
 
 ```bash
 curl -i http://localhost:3000/healthz
+```
+
+### Version
+
+```bash
+curl -i http://localhost:3000/version
 ```
 
 ## Dependencies
