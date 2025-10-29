@@ -123,6 +123,9 @@ pub enum Commands {
 
         #[arg(long, help = "Path to live ledger directory (-l)")]
         ledger_path: PathBuf,
+
+        #[arg(long, help = "Generate MetaMerkleSnapshot after snapshot")]
+        generate_meta_merkle: bool,
     },
     InitProgramConfig {},
     UpdateOperatorWhitelist {
@@ -528,6 +531,7 @@ fn main() -> Result<()> {
             backup_ledger_dir,
             agave_ledger_tool_path,
             ledger_path,
+            generate_meta_merkle,
         } => {
             info!(
                 "AwaitSnapshot starting: scan_interval={}m target_slot={} snapshot_dir={:?} backup_snapshot_dir={:?} backup_ledger_dir={:?}",
@@ -673,6 +677,30 @@ fn main() -> Result<()> {
                             backup_snapshots_dir.clone(),
                             &cli.cluster,
                         );
+
+                        if generate_meta_merkle {
+                            info!("Generating MetaMerkleSnapshot for slot {}...", slot);
+                            let mm_start = std::time::Instant::now();
+
+                            let bank = get_bank_from_snapshot_at_slot(
+                                slot,
+                                &backup_snapshots_dir,
+                                &backup_snapshots_dir,
+                                vec![backup_ledger_dir.clone()],
+                                backup_ledger_dir.as_path(),
+                            )?;
+                            let meta_merkle_snapshot =
+                                generate_meta_merkle_snapshot(&Arc::new(bank))?;
+                            let mm_file_path =
+                                backup_snapshots_dir.join(format!("meta_merkle-{}.zip", slot));
+                            meta_merkle_snapshot.save_compressed(mm_file_path.clone())?;
+
+                            let mm_duration = mm_start.elapsed();
+                            info!(
+                                "Saved MetaMerkleSnapshot to {:?} (took {:?})",
+                                mm_file_path, mm_duration
+                            );
+                        }
 
                         info!("Completed AwaitSnapshot flow. Exiting.");
                         break;
