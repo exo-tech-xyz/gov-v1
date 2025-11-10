@@ -56,12 +56,4 @@ impl ProgramConfig {
         }
         Ok(())
     }
-
-    pub fn contains_operator(&self, operator: &Pubkey) -> Result<()> {
-        require!(
-            self.whitelisted_operators.contains(operator),
-            ErrorCode::OperatorNotWhitelisted
-        );
-        Ok(())
-    }
 }

@@ -1,20 +1,23 @@
 use anchor_lang::prelude::*;
 
-use crate::{error::ErrorCode, BallotBox, ProgramConfig};
+use crate::{error::ErrorCode, BallotBox};
 
 #[derive(Accounts)]
 pub struct RemoveVote<'info> {
     pub operator: Signer<'info>,
     #[account(mut)]
     pub ballot_box: Box<Account<'info, BallotBox>>,
-    pub program_config: Box<Account<'info, ProgramConfig>>,
 }
 
 pub fn handler(ctx: Context<RemoveVote>) -> Result<()> {
     let operator = &ctx.accounts.operator.key();
     let ballot_box = &mut ctx.accounts.ballot_box;
-    let program_config = &ctx.accounts.program_config;
-    program_config.contains_operator(operator)?;
+
+    // Check if operator is in the voter list snapshot
+    require!(
+        ballot_box.voter_list.contains(operator),
+        ErrorCode::OperatorNotWhitelisted
+    );
 
     require!(
         !ballot_box.has_vote_expired(Clock::get()?.unix_timestamp),

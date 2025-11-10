@@ -27,7 +27,7 @@ pub struct InitBallotBox<'info> {
 pub fn handler(ctx: Context<InitBallotBox>, snapshot_slot: u64) -> Result<()> {
     let clock = Clock::get()?;
 
-    // Check that snapshot slot is greater than current slot to 
+    // Check that snapshot slot is greater than current slot to
     // allow sufficient lead time for snapshot.
     require!(snapshot_slot > clock.slot, ErrorCode::InvalidSnapshotSlot);
 
