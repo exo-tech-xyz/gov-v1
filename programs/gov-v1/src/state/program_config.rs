@@ -20,8 +20,6 @@ pub struct ProgramConfig {
     pub min_consensus_threshold_bps: u16,
     /// Admin allowed to decide the winning ballot if vote expires before consensus.
     pub tie_breaker_admin: Pubkey,
-    /// ID for next BallotBox
-    pub next_ballot_id: u64,
     /// Duration for which ballot box will be opened for voting.
     pub vote_duration: i64,
 }
