@@ -137,7 +137,6 @@ pub fn send_cast_vote(
         .accounts(accounts::CastVote {
             operator: tx_sender.authority.pubkey(),
             ballot_box,
-            program_config: ProgramConfig::pda().0,
         })
         .args(instruction::CastVote { ballot })
         .instructions()?;
@@ -145,21 +144,23 @@ pub fn send_cast_vote(
     tx_sender.send(ixs)
 }
 
+// TODO: Remove after implenting CPI signer check
 pub fn send_init_ballot_box(
     tx_sender: &TxSender,
     ballot_box: Pubkey,
+    snapshot_slot: u64,
 ) -> Result<Signature, ClientError> {
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts::InitBallotBox {
             payer: tx_sender.payer.pubkey(),
-            operator: tx_sender.authority.pubkey(),
+            govcontract: tx_sender.authority.pubkey(),
             ballot_box,
             program_config: ProgramConfig::pda().0,
             system_program: system_program::ID,
         })
-        .args(instruction::InitBallotBox {})
+        .args(instruction::InitBallotBox { snapshot_slot })
         .instructions()?;
 
     tx_sender.send(ixs)
@@ -175,7 +176,6 @@ pub fn send_remove_vote(
         .accounts(accounts::RemoveVote {
             operator: tx_sender.authority.pubkey(),
             ballot_box,
-            program_config: ProgramConfig::pda().0,
         })
         .args(instruction::RemoveVote {})
         .instructions()?;
@@ -206,7 +206,7 @@ pub fn send_finalize_ballot(
 pub fn send_set_tie_breaker(
     tx_sender: &TxSender,
     ballot_box: Pubkey,
-    ballot_index: u8,
+    ballot: Ballot,
 ) -> Result<Signature, ClientError> {
     let ixs = tx_sender
         .program
@@ -216,7 +216,25 @@ pub fn send_set_tie_breaker(
             ballot_box,
             program_config: ProgramConfig::pda().0,
         })
-        .args(instruction::SetTieBreaker { ballot_index })
+        .args(instruction::SetTieBreaker { ballot })
+        .instructions()?;
+
+    tx_sender.send(ixs)
+}
+
+pub fn send_reset_ballot_box(
+    tx_sender: &TxSender,
+    ballot_box: Pubkey,
+) -> Result<Signature, ClientError> {
+    let ixs = tx_sender
+        .program
+        .request()
+        .accounts(accounts::ResetBallotBox {
+            tie_breaker_admin: tx_sender.authority.pubkey(),
+            ballot_box,
+            program_config: ProgramConfig::pda().0,
+        })
+        .args(instruction::ResetBallotBox {})
         .instructions()?;
 
     tx_sender.send(ixs)
