@@ -28,4 +28,8 @@ pub enum ErrorCode {
     OverlappingWhitelistEntries,
     #[msg("Invalid ballot index")]
     InvalidBallotIndex,
+    #[msg("Snapshot slot must be greater than current slot")]
+    InvalidSnapshotSlot,
+    #[msg("Ballot tallies must be at max length to reset")]
+    BallotTalliesNotMaxLength,
 }
