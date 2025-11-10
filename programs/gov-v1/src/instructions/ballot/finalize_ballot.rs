@@ -11,7 +11,7 @@ pub struct FinalizeBallot<'info> {
         init,
         seeds = [
             b"ConsensusResult".as_ref(),
-            &ballot_box.ballot_id.to_le_bytes()
+            &ballot_box.snapshot_slot.to_le_bytes()
         ],
         bump,
         payer = payer,
@@ -29,8 +29,9 @@ pub fn handler(ctx: Context<FinalizeBallot>) -> Result<()> {
     );
 
     let consensus_result = &mut ctx.accounts.consensus_result;
-    consensus_result.ballot_id = ballot_box.ballot_id;
+    consensus_result.snapshot_slot = ballot_box.snapshot_slot;
     consensus_result.ballot = ballot_box.winning_ballot.clone();
+    consensus_result.tie_breaker_consensus = ballot_box.tie_breaker_consensus;
 
     Ok(())
 }
