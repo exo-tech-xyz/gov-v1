@@ -2,13 +2,23 @@ use anchor_lang::prelude::*;
 
 use crate::{error::ErrorCode, BallotBox, ProgramConfig};
 
+const GOV_PROGRAM_ID: Pubkey = pubkey!("GoVpHPV3EY89hwKJjfw19jTdgMsGKG4UFSE2SfJqTuhc");
+
 #[derive(Accounts)]
-#[instruction(snapshot_slot: u64)]
+#[instruction(snapshot_slot: u64, proposal_seed: u64, spl_vote_account: Pubkey)]
 pub struct InitBallotBox<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
-    // TODO: Enforce check that signer is a PDA of gov contract program
-    pub govcontract: Signer<'info>,
+    #[account(
+        seeds = [
+            b"proposal",
+            &proposal_seed.to_le_bytes(),
+            spl_vote_account.as_ref()
+        ],
+        bump,
+        seeds::program = GOV_PROGRAM_ID
+    )]
+    pub proposal: Signer<'info>,
     #[account(
         init,
         seeds = [
@@ -24,7 +34,12 @@ pub struct InitBallotBox<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<InitBallotBox>, snapshot_slot: u64) -> Result<()> {
+pub fn handler(
+    ctx: Context<InitBallotBox>,
+    snapshot_slot: u64,
+    _proposal_seed: u64,
+    _spl_vote_account: Pubkey,
+) -> Result<()> {
     let clock = Clock::get()?;
 
     // Check that snapshot slot is greater than current slot to

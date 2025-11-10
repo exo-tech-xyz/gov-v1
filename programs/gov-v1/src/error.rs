@@ -32,4 +32,6 @@ pub enum ErrorCode {
     InvalidSnapshotSlot,
     #[msg("Ballot tallies must be at max length to reset")]
     BallotTalliesNotMaxLength,
+    #[msg("Invalid proposal")]
+    InvalidProposal,
 }

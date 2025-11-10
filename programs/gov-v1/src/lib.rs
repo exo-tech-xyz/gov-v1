@@ -49,8 +49,13 @@ pub mod gov_v1 {
         finalize_proposed_authority::handler(ctx)
     }
 
-    pub fn init_ballot_box(ctx: Context<InitBallotBox>, snapshot_slot: u64) -> Result<()> {
-        init_ballot_box::handler(ctx, snapshot_slot)
+    pub fn init_ballot_box(
+        ctx: Context<InitBallotBox>,
+        snapshot_slot: u64,
+        proposal_seed: u64,
+        spl_vote_account: Pubkey,
+    ) -> Result<()> {
+        init_ballot_box::handler(ctx, snapshot_slot, proposal_seed, spl_vote_account)
     }
 
     pub fn cast_vote(ctx: Context<CastVote>, ballot: Ballot) -> Result<()> {
