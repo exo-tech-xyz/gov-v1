@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use anchor_lang::prelude::*;
 
-const MAX_OPERATOR_WHITELIST: usize = 64;
+pub const MAX_OPERATOR_WHITELIST: usize = 64;
 
 #[derive(InitSpace, Debug)]
 #[account]
@@ -13,6 +13,7 @@ pub struct ProgramConfig {
     /// Authority to be set to upon finalization of proposal.
     pub proposed_authority: Option<Pubkey>,
     /// Operators whitelisted to participate in voting.
+    /// A snapshot of this list will be taken at the time of BallotBox creation.
     #[max_len(MAX_OPERATOR_WHITELIST)]
     pub whitelisted_operators: Vec<Pubkey>,
     /// Min. percentage of votes required to finalize a ballot. Used during BallotBox creation.

@@ -1,13 +1,13 @@
 use anchor_lang::prelude::*;
 
+use crate::MAX_OPERATOR_WHITELIST;
+
 pub const MAX_OPERATOR_VOTES: usize = 64;
 pub const MAX_BALLOT_TALLIES: usize = 64;
 
 #[account]
 #[derive(InitSpace, Debug)]
 pub struct BallotBox {
-    /// ID
-    pub ballot_id: u64,
     /// Bump seed for the PDA
     pub bump: u8,
     /// The epoch this ballot box is for
@@ -29,11 +29,18 @@ pub struct BallotBox {
     /// Timestamp when voting ends. Tie breaker admin will decide the results
     /// if no consensus is reached by then.
     pub vote_expiry_timestamp: i64,
+    /// Slot for which the snapshot is taken
+    pub snapshot_slot: u64,
+    /// Snapshot of whitelisted operators at BallotBox creation
+    #[max_len(MAX_OPERATOR_WHITELIST)]
+    pub voter_list: Vec<Pubkey>,
+    /// Whether consensus was reached via tie breaker
+    pub tie_breaker_consensus: bool,
 }
 
 impl BallotBox {
-    pub fn pda(ballot_id: u64) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[b"BallotBox", &ballot_id.to_le_bytes()], &crate::ID)
+    pub fn pda(snapshot_slot: u64) -> (Pubkey, u8) {
+        Pubkey::find_program_address(&[b"BallotBox", &snapshot_slot.to_le_bytes()], &crate::ID)
     }
 
     pub fn has_vote_expired(&self, current_timestamp: i64) -> bool {
