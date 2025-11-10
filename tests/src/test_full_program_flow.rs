@@ -12,6 +12,7 @@ use anchor_client::{
 use cli::{utils::*, MetaMerkleSnapshot};
 use gov_v1::{
     Ballot, BallotBox, BallotTally, ConsensusResult, MetaMerkleProof, OperatorVote, ProgramConfig,
+    MAX_BALLOT_TALLIES, MAX_OPERATOR_VOTES,
 };
 
 use crate::utils::{assert::assert_client_err, data_types::ProgramTestContext, fetch_utils::*};
@@ -95,7 +96,10 @@ fn test_program_config(
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.authority, program.payer());
-    assert_eq!(program_config.proposed_authority, Some(new_authority.pubkey()));
+    assert_eq!(
+        program_config.proposed_authority,
+        Some(new_authority.pubkey())
+    );
     assert_eq!(program_config.tie_breaker_admin, program.payer());
     assert_eq!(
         program_config.whitelisted_operators,
@@ -122,13 +126,7 @@ fn test_program_config(
     assert_eq!(program_config.proposed_authority, None);
 
     // Propose new authority as program payer.
-    send_update_program_config(
-        tx_sender2,
-        Some(context.payer.pubkey()),
-        None,
-        None,
-        None,
-    )?;
+    send_update_program_config(tx_sender2, Some(context.payer.pubkey()), None, None, None)?;
     // Finalize proposed authority.
     send_finalize_proposed_authority(tx_sender)?;
 
@@ -543,6 +541,89 @@ fn test_tie_breaker(
     Ok(())
 }
 
+fn test_reset_ballot_box(
+    program: &Program<&Keypair>,
+    context: &ProgramTestContext,
+) -> Result<(), ClientError> {
+    // 1) Create a new ballot box
+    let snapshot_slot = context.snapshot_slot;
+    let (ballot_box_pda, bump) = BallotBox::pda(snapshot_slot);
+
+    let tx_sender_operator = &TxSender {
+        program,
+        micro_lamports: None,
+        payer: &context.payer,
+        authority: &context.operators[0],
+    };
+
+    let tx = send_init_ballot_box(tx_sender_operator, ballot_box_pda, snapshot_slot)?;
+    let (_, tx_block_time) = fetch_tx_block_details(program, tx);
+    let vote_expiry_timestamp = tx_block_time + VOTE_DURATION;
+
+    // Fill ballot box with null votes (except final vote)
+    let mut ballots = vec![];
+    for i in 0..(MAX_BALLOT_TALLIES - 1) {
+        let ballot = Ballot {
+            meta_merkle_root: {
+                let mut root = [0u8; 32];
+                root[0] = (i as u8).wrapping_add(100);
+                root
+            },
+            snapshot_hash: {
+                let mut hash = [0u8; 32];
+                hash[0] = (i as u8).wrapping_add(200);
+                hash
+            },
+        };
+        ballots.push(ballot);
+    }
+
+    // Chunk ballots into groups of 8
+    let chunks = ballots.chunks(8);
+    let chunks_len = chunks.len();
+    for (i, chunk) in chunks.enumerate() {
+        send_cast_and_remove_votes(tx_sender_operator, ballot_box_pda, chunk.to_vec())?;
+    }
+
+    // Reset ballot box should fail since box is not full
+    let tx_sender_admin = &TxSender {
+        program,
+        micro_lamports: None,
+        payer: &context.payer,
+        authority: &context.payer,
+    };
+    let tx = send_reset_ballot_box(tx_sender_admin, ballot_box_pda);
+    assert_client_err(tx, "Ballot tallies not at max length");
+
+    // Cast final vote
+    let final_ballot = Ballot {
+        meta_merkle_root: [222; 32],
+        snapshot_hash: [222; 32],
+    };
+    send_cast_vote(tx_sender_operator, ballot_box_pda, final_ballot)?;
+
+    // Verify ballot box tallies is at max capacity, with only one operator vote
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
+    assert_eq!(ballot_box.ballot_tallies.len(), MAX_OPERATOR_VOTES);
+    assert_eq!(ballot_box.operator_votes.len(), 1);
+
+    // Reset ballot box should succeed
+    send_reset_ballot_box(tx_sender_admin, ballot_box_pda)?;
+
+    // Verify that votes and tallies are cleared
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
+    assert_eq!(ballot_box.operator_votes.len(), 0);
+    assert_eq!(ballot_box.ballot_tallies.len(), 0);
+    // Other fields should remain unchanged
+    assert_eq!(ballot_box.snapshot_slot, snapshot_slot);
+    assert_eq!(ballot_box.bump, bump);
+    assert_eq!(ballot_box.slot_consensus_reached, 0);
+    assert_eq!(ballot_box.tie_breaker_consensus, false);
+    assert_eq!(ballot_box.vote_expiry_timestamp, vote_expiry_timestamp);
+
+    Ok(())
+}
+
 fn test_merkle_proofs(
     program: &Program<&Keypair>,
     context: &ProgramTestContext,
@@ -713,4 +794,7 @@ fn main() {
 
     context.snapshot_slot = context.snapshot_slot + 2000;
     test_tie_breaker(&program, &context).unwrap();
+
+    context.snapshot_slot = context.snapshot_slot + 3000;
+    test_reset_ballot_box(&program, &context).unwrap();
 }
