@@ -30,6 +30,6 @@ pub enum ErrorCode {
     InvalidBallotIndex,
     #[msg("Snapshot slot must be greater than current slot")]
     InvalidSnapshotSlot,
-    #[msg("Ballot tallies must be at max length to reset")]
+    #[msg("Ballot tallies not at max length")]
     BallotTalliesNotMaxLength,
 }

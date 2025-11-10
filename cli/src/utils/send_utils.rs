@@ -144,6 +144,39 @@ pub fn send_cast_vote(
     tx_sender.send(ixs)
 }
 
+pub fn send_cast_and_remove_votes(
+    tx_sender: &TxSender,
+    ballot_box: Pubkey,
+    ballots: Vec<Ballot>,
+) -> Result<Signature, ClientError> {
+    let mut ixs = Vec::new();
+    for ballot in ballots {
+        let cast_ix = tx_sender
+            .program
+            .request()
+            .accounts(accounts::CastVote {
+                operator: tx_sender.authority.pubkey(),
+                ballot_box,
+            })
+            .args(instruction::CastVote {
+                ballot: ballot.clone(),
+            })
+            .instructions()?;
+        ixs.extend(cast_ix);
+        let remove_ix = tx_sender
+            .program
+            .request()
+            .accounts(accounts::RemoveVote {
+                operator: tx_sender.authority.pubkey(),
+                ballot_box,
+            })
+            .args(instruction::RemoveVote {})
+            .instructions()?;
+        ixs.extend(remove_ix);
+    }
+    tx_sender.send(ixs)
+}
+
 // TODO: Remove after implenting CPI signer check
 pub fn send_init_ballot_box(
     tx_sender: &TxSender,
@@ -308,9 +341,7 @@ pub fn send_close_meta_merkle_proof(
     tx_sender.send(ixs)
 }
 
-pub fn send_finalize_proposed_authority(
-    tx_sender: &TxSender,
-) -> Result<Signature, ClientError> {
+pub fn send_finalize_proposed_authority(tx_sender: &TxSender) -> Result<Signature, ClientError> {
     let ixs = tx_sender
         .program
         .request()
