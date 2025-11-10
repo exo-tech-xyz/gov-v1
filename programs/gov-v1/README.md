@@ -106,3 +106,31 @@ In the event that a `BallotBox` becomes bricked with invalid ballots, the `reset
 - The ballot tallies have reached maximum length (all entries used)
 
 This recovery mechanism replaces the previous approach of recreating BallotBoxes, which is no longer possible due to the 1:1 slot mapping.
+
+---
+
+### 7. Cross-Program Invocation (CPI) and Testing
+
+**Production CPI Requirement:**
+
+The `init_ballot_box` instruction enforces a CPI requirement in production, requiring the `proposal` account to be a PDA from the governance program (`GoVpHPV3EY89hwKJjfw19jTdgMsGKG4UFSE2SfJqTuhc`). This ensures that ballot boxes can only be created through the governance program's proposal flow.
+
+**Testing with `skip-pda-check` Feature:**
+
+For local testing without setting up a full governance program, the `skip-pda-check` feature flag disables the PDA check, allowing `init_ballot_box` to be called directly with any signer as the `proposal` account.
+
+**Important:** When building the program for local testing, you must build with the `skip-pda-check` feature:
+
+```bash
+anchor build -- --features skip-pda-check
+```
+
+This allows tests to call `init_ballot_box` directly using a regular keypair as the proposal signer, without requiring a CPI from a governance program.
+
+**For production deployments**, build without the feature flag (default) to enforce the CPI requirement:
+
+```bash
+anchor build
+```
+
+The tests automatically enable this feature via `tests/Cargo.toml`, so when running `anchor test`, the program will be built with the feature enabled.

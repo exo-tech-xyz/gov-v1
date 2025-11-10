@@ -177,7 +177,7 @@ pub fn send_cast_and_remove_votes(
     tx_sender.send(ixs)
 }
 
-// TODO: Remove after implenting CPI signer check
+// Used for testing only. Sends init ballot box using a placeholder signer.
 pub fn send_init_ballot_box(
     tx_sender: &TxSender,
     ballot_box: Pubkey,
@@ -188,12 +188,12 @@ pub fn send_init_ballot_box(
         .request()
         .accounts(accounts::InitBallotBox {
             payer: tx_sender.payer.pubkey(),
-            govcontract: tx_sender.authority.pubkey(),
+            proposal: tx_sender.authority.pubkey(),
             ballot_box,
             program_config: ProgramConfig::pda().0,
             system_program: system_program::ID,
         })
-        .args(instruction::InitBallotBox { snapshot_slot })
+        .args(instruction::InitBallotBox { snapshot_slot, proposal_seed: 0, spl_vote_account: Pubkey::default() })
         .instructions()?;
 
     tx_sender.send(ixs)

@@ -94,7 +94,15 @@ rustc --version // verify version
 
 ## Testing
 
-Anchor tests can be executed directly from the root directory with `anchor test` which spins up a local validator. Note that setup of env variables is required.
+Anchor tests can be executed directly from the root directory with:
+
+```bash
+anchor test -- --features skip-pda-check
+```
+
+This spins up a local validator and runs the integration tests. Note that setup of environment variables is required (see [Dependencies](#dependencies)).
+
+For details about building the program with the `skip-pda-check` feature for local testing, see the [Program README](programs/gov-v1/README.md#7-cross-program-invocation-cpi-and-testing).
 
 ---
 
