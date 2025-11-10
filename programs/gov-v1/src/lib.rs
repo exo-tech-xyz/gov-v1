@@ -49,8 +49,8 @@ pub mod gov_v1 {
         finalize_proposed_authority::handler(ctx)
     }
 
-    pub fn init_ballot_box(ctx: Context<InitBallotBox>) -> Result<()> {
-        init_ballot_box::handler(ctx)
+    pub fn init_ballot_box(ctx: Context<InitBallotBox>, snapshot_slot: u64) -> Result<()> {
+        init_ballot_box::handler(ctx, snapshot_slot)
     }
 
     pub fn cast_vote(ctx: Context<CastVote>, ballot: Ballot) -> Result<()> {
@@ -61,8 +61,12 @@ pub mod gov_v1 {
         remove_vote::handler(ctx)
     }
 
-    pub fn set_tie_breaker(ctx: Context<SetTieBreaker>, ballot_index: u8) -> Result<()> {
-        set_tie_breaker::handler(ctx, ballot_index)
+    pub fn set_tie_breaker(ctx: Context<SetTieBreaker>, ballot: Ballot) -> Result<()> {
+        set_tie_breaker::handler(ctx, ballot)
+    }
+
+    pub fn reset_ballot_box(ctx: Context<ResetBallotBox>) -> Result<()> {
+        reset_ballot_box::handler(ctx)
     }
 
     pub fn finalize_ballot(ctx: Context<FinalizeBallot>) -> Result<()> {
