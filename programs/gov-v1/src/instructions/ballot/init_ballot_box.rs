@@ -19,7 +19,7 @@ pub struct InitBallotBox<'info> {
         bump,
         seeds::program = GOV_PROGRAM_ID
     ))]
-    /// CHECK: Verifies that signer is a Proposal PDA from the governance program.
+    /// Verifies that signer is a Proposal PDA from the governance program.
     /// When `skip-pda-check` feature is enabled, this check is disabled to allow local testing without CPI.
     pub proposal: Signer<'info>,
     #[account(
