@@ -126,7 +126,7 @@ export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
 
 ---
 
-### Program Setup (after deployment)
+### Program Setup and Configuration
 
 ```bash
 # Initialize ProgramConfig global singleton on-chain
@@ -152,7 +152,7 @@ RUST_LOG=info cargo run --bin cli -- \
   update-program-config \
   --min-consensus-threshold-bps 6000 \
   --vote-duration 180 \
-  --tie-breaker-admin key1 \
+  --tie-breaker-admin <NEW_TIE_BREAKER_ADMIN_PUBKEY> \
   --proposed-authority <NEW_ADMIN_PUBKEY>
 
 # Finalize proposed authority (run as the proposed authority)
