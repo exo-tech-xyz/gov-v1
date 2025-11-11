@@ -119,18 +119,12 @@ The `init_ballot_box` instruction enforces a CPI requirement in production, requ
 
 For local testing without setting up a full governance program, the `skip-pda-check` feature flag disables the PDA check, allowing `init_ballot_box` to be called directly with any signer as the `proposal` account.
 
-**Important:** When building the program for local testing, you must build with the `skip-pda-check` feature:
-
 ```bash
-anchor build -- --features skip-pda-check
+anchor test -- --features skip-pda-check
 ```
-
-This allows tests to call `init_ballot_box` directly using a regular keypair as the proposal signer, without requiring a CPI from a governance program.
 
 **For production deployments**, build without the feature flag (default) to enforce the CPI requirement:
 
 ```bash
 anchor build
 ```
-
-The tests automatically enable this feature via `tests/Cargo.toml`, so when running `anchor test`, the program will be built with the feature enabled.
