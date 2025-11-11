@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::{
     error::ErrorCode,
     state::ballot_box::{MAX_BALLOT_TALLIES, MAX_OPERATOR_VOTES},
-    Ballot, BallotBox, BallotTally, OperatorVote, ProgramConfig,
+    Ballot, BallotBox, BallotTally, OperatorVote,
 };
 
 #[derive(Accounts)]
@@ -11,14 +11,17 @@ pub struct CastVote<'info> {
     pub operator: Signer<'info>,
     #[account(mut)]
     pub ballot_box: Box<Account<'info, BallotBox>>,
-    pub program_config: Box<Account<'info, ProgramConfig>>,
 }
 
 pub fn handler(ctx: Context<CastVote>, ballot: Ballot) -> Result<()> {
     let operator = &ctx.accounts.operator.key();
     let ballot_box = &mut ctx.accounts.ballot_box;
-    let program_config = &ctx.accounts.program_config;
-    program_config.contains_operator(operator)?;
+
+    // Check if operator is in the voter list snapshot
+    require!(
+        ballot_box.voter_list.contains(operator),
+        ErrorCode::OperatorNotWhitelisted
+    );
 
     let clock = Clock::get()?;
     require!(
@@ -78,8 +81,7 @@ pub fn handler(ctx: Context<CastVote>, ballot: Ballot) -> Result<()> {
 
     // Set winning ballot if consensus threshold is reached (for first time).
     if !ballot_box.has_consensus_reached() {
-        let tally_bps =
-            u64::from(tally) * 10000 / (program_config.whitelisted_operators.len() as u64);
+        let tally_bps = u64::from(tally) * 10000 / (ballot_box.voter_list.len() as u64);
         if tally_bps >= ballot_box.min_consensus_threshold_bps.into() {
             ballot_box.slot_consensus_reached = clock.slot;
             ballot_box.winning_ballot = ballot;

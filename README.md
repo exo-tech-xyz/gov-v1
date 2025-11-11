@@ -94,7 +94,13 @@ rustc --version // verify version
 
 ## Testing
 
-Anchor tests can be executed directly from the root directory with `anchor test` which spins up a local validator. Note that setup of env variables is required.
+Anchor tests can be executed directly from the root directory with:
+
+```bash
+anchor test -- --features skip-pda-check
+```
+
+Note that setup of environment variables is required (see [Dependencies](#dependencies)). For details about building the program with the `skip-pda-check` feature for local testing, see the [Program README](programs/gov-v1/README.md#7-cross-program-invocation-cpi-and-testing).
 
 ---
 
@@ -120,7 +126,7 @@ export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
 
 ---
 
-### Program Setup (after deployment)
+### Program Setup and Configuration
 
 ```bash
 # Initialize ProgramConfig global singleton on-chain
@@ -146,7 +152,7 @@ RUST_LOG=info cargo run --bin cli -- \
   update-program-config \
   --min-consensus-threshold-bps 6000 \
   --vote-duration 180 \
-  --tie-breaker-admin key1 \
+  --tie-breaker-admin <NEW_TIE_BREAKER_ADMIN_PUBKEY> \
   --proposed-authority <NEW_ADMIN_PUBKEY>
 
 # Finalize proposed authority (run as the proposed authority)
@@ -230,41 +236,33 @@ cargo run --release --bin cli -- \
 
 ### Log On-Chain State
 
-```bash
+````bash
 # Log ProgramConfig
 RUST_LOG=info cargo run --bin cli -- \
   --rpc-url https://api.devnet.solana.com log \
   --ty program-config
 
-# Log BallotBox (e.g. id = 0)
+# Log BallotBox (by snapshot_slot)
 RUST_LOG=info cargo run --bin cli -- \
   --rpc-url https://api.devnet.solana.com log \
-  --ty ballot-box --id 0
+  --ty ballot-box --snapshot-slot <SLOT>
 
-# Log ConsensusResult of a vote account for a specific ballot (e.g. id = 0)
+# Log ConsensusResult (by snapshot_slot)
 RUST_LOG=info cargo run --bin cli -- \
   --rpc-url https://api.devnet.solana.com log \
-  --ty consensus-result --id 0
-```
+  --ty consensus-result --snapshot-slot <SLOT>
 
 ---
 
 ### Voting Flow
 
 ```bash
-# Create a new BallotBox
-RUST_LOG=info cargo run --bin cli -- \
-  --payer-path ~/.config/solana/id.json \
-  --authority-path ~/.config/solana/id.json \
-  --rpc-url https://api.devnet.solana.com \
-  init-ballot-box
-
 # Vote with root + hash
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
-  cast-vote --id 1 \
+  cast-vote --snapshot-slot <SLOT> \
   --root ByVtRpEnLyD1eVS8Bq21VvDnMffsqPAypaMT9KMZCZcJ \
   --hash 4seYTnZyZNby5ZQTy8ajAapDiMgUYrvYx4hzYRXVn4zH
 
@@ -273,7 +271,7 @@ RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
-  cast-vote-from-snapshot --id 1 \
+  cast-vote-from-snapshot --snapshot-slot <SLOT> \
   --read-path ./meta_merkle-340850340.zip
 
 # Remove vote (before consensus and voting expiry)
@@ -281,8 +279,8 @@ RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
-  remove-vote --id 1
-```
+  remove-vote --snapshot-slot <SLOT>
+````
 
 ---
 
@@ -294,14 +292,23 @@ RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
-  finalize-ballot --id 1
+  finalize-ballot --snapshot-slot <SLOT>
 
 # Set tie-breaking result if consensus was not reached
+# Note: Can set any ballot value, not limited to existing ballots
 RUST_LOG=info cargo run --bin cli -- \
   --payer-path ~/.config/solana/id.json \
   --authority-path ~/.config/solana/id.json \
   --rpc-url https://api.devnet.solana.com \
-  set-tie-breaker --id 1 --idx 0
+  set-tie-breaker --snapshot-slot <SLOT> \
+  --root <MERKLE_ROOT> --hash <SNAPSHOT_HASH>
+
+# Reset ballot box if bricked (before expiry, consensus not reached, tallies at max)
+RUST_LOG=info cargo run --bin cli -- \
+  --payer-path ~/.config/solana/id.json \
+  --authority-path ~/.config/solana/id.json \
+  --rpc-url https://api.devnet.solana.com \
+  reset-ballot-box --snapshot-slot <SLOT>
 ```
 
 ---

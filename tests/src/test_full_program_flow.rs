@@ -12,6 +12,7 @@ use anchor_client::{
 use cli::{utils::*, MetaMerkleSnapshot};
 use gov_v1::{
     Ballot, BallotBox, BallotTally, ConsensusResult, MetaMerkleProof, OperatorVote, ProgramConfig,
+    MAX_BALLOT_TALLIES, MAX_OPERATOR_VOTES,
 };
 
 use crate::utils::{assert::assert_client_err, data_types::ProgramTestContext, fetch_utils::*};
@@ -38,7 +39,6 @@ fn test_program_config(
     assert_eq!(program_config.tie_breaker_admin, Pubkey::default());
     assert_eq!(program_config.whitelisted_operators.len(), 0);
     assert_eq!(program_config.min_consensus_threshold_bps, 0);
-    assert_eq!(program_config.next_ballot_id, 0);
     assert_eq!(program_config.vote_duration, 0);
 
     // Add operators
@@ -96,7 +96,10 @@ fn test_program_config(
     // Verify values in ProgramConfig
     let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     assert_eq!(program_config.authority, program.payer());
-    assert_eq!(program_config.proposed_authority, Some(new_authority.pubkey()));
+    assert_eq!(
+        program_config.proposed_authority,
+        Some(new_authority.pubkey())
+    );
     assert_eq!(program_config.tie_breaker_admin, program.payer());
     assert_eq!(
         program_config.whitelisted_operators,
@@ -106,7 +109,6 @@ fn test_program_config(
         program_config.min_consensus_threshold_bps,
         MIN_CONSENSUS_BPS
     );
-    assert_eq!(program_config.next_ballot_id, 0);
     assert_eq!(program_config.vote_duration, VOTE_DURATION);
 
     // Finalize proposed authority
@@ -124,13 +126,7 @@ fn test_program_config(
     assert_eq!(program_config.proposed_authority, None);
 
     // Propose new authority as program payer.
-    send_update_program_config(
-        tx_sender2,
-        Some(context.payer.pubkey()),
-        None,
-        None,
-        None,
-    )?;
+    send_update_program_config(tx_sender2, Some(context.payer.pubkey()), None, None, None)?;
     // Finalize proposed authority.
     send_finalize_proposed_authority(tx_sender)?;
 
@@ -147,7 +143,6 @@ fn test_program_config(
         program_config.min_consensus_threshold_bps,
         MIN_CONSENSUS_BPS
     );
-    assert_eq!(program_config.next_ballot_id, 0);
     assert_eq!(program_config.vote_duration, VOTE_DURATION);
 
     Ok(())
@@ -157,7 +152,8 @@ fn test_balloting(
     program: &Program<&Keypair>,
     context: &ProgramTestContext,
 ) -> Result<(), ClientError> {
-    let (ballot_box_pda, bump) = BallotBox::pda(0);
+    let snapshot_slot = context.snapshot_slot;
+    let (ballot_box_pda, bump) = BallotBox::pda(snapshot_slot);
 
     // Init ballot box
     let operator1 = &context.operators[0];
@@ -168,13 +164,14 @@ fn test_balloting(
         authority: operator1,
     };
 
-    let tx = send_init_ballot_box(tx_sender1, ballot_box_pda)?;
+    let tx = send_init_ballot_box(tx_sender1, ballot_box_pda, snapshot_slot)?;
     let (slot_created, tx_block_time) = fetch_tx_block_details(program, tx);
     let epoch_info = program.rpc().get_epoch_info()?;
     let vote_expiry_timestamp = tx_block_time + VOTE_DURATION;
 
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     let ballot_box: BallotBox = program.account(ballot_box_pda)?;
-    assert_eq!(ballot_box.ballot_id, 0);
+    assert_eq!(ballot_box.snapshot_slot, snapshot_slot);
     assert_eq!(ballot_box.bump, bump);
     assert_eq!(ballot_box.epoch, epoch_info.epoch);
     assert_eq!(ballot_box.slot_created, slot_created);
@@ -184,10 +181,8 @@ fn test_balloting(
     assert_eq!(ballot_box.operator_votes.len(), 0);
     assert_eq!(ballot_box.ballot_tallies.len(), 0);
     assert_eq!(ballot_box.vote_expiry_timestamp, vote_expiry_timestamp);
-
-    // Check that next_ballot_id is incremented
-    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
-    assert_eq!(program_config.next_ballot_id, 1);
+    assert_eq!(ballot_box.voter_list, program_config.whitelisted_operators);
+    assert_eq!(ballot_box.tie_breaker_consensus, false);
 
     // Casting an invalid ballot fails.
     let ballot1 = Ballot {
@@ -221,7 +216,7 @@ fn test_balloting(
 
     // Checks that a new ballot tally is created.
     let ballot_box: BallotBox = program.account(ballot_box_pda)?;
-    assert_eq!(ballot_box.ballot_id, 0);
+    assert_eq!(ballot_box.snapshot_slot, snapshot_slot);
     assert_eq!(ballot_box.bump, bump);
     assert_eq!(ballot_box.epoch, epoch_info.epoch);
     assert_eq!(ballot_box.slot_created, slot_created);
@@ -324,7 +319,7 @@ fn test_balloting(
     assert_client_err(tx, "Operator has not voted");
 
     // Finalize ballot should fail before consensus is reached.
-    let (consensus_result_pda, _bump) = ConsensusResult::pda(0);
+    let (consensus_result_pda, _bump) = ConsensusResult::pda(snapshot_slot);
     let tx = send_finalize_ballot(tx_sender1, ballot_box_pda, consensus_result_pda);
     assert_client_err(tx, "Consensus not reached");
 
@@ -381,8 +376,9 @@ fn test_balloting(
     // Finalize ballot should succeed.
     send_finalize_ballot(tx_sender1, ballot_box_pda, consensus_result_pda)?;
     let consensus_result: ConsensusResult = program.account(consensus_result_pda)?;
-    assert_eq!(consensus_result.ballot_id, ballot_box.ballot_id);
+    assert_eq!(consensus_result.snapshot_slot, snapshot_slot);
     assert_eq!(consensus_result.ballot, ballot_box.winning_ballot);
+    assert_eq!(consensus_result.tie_breaker_consensus, false);
 
     Ok(())
 }
@@ -391,7 +387,8 @@ fn test_tie_breaker(
     program: &Program<&Keypair>,
     context: &ProgramTestContext,
 ) -> Result<(), ClientError> {
-    let (ballot_box_pda, bump) = BallotBox::pda(1);
+    let snapshot_slot = context.snapshot_slot;
+    let (ballot_box_pda, bump) = BallotBox::pda(snapshot_slot);
 
     // Init ballot box
     let operator1 = &context.operators[0];
@@ -401,13 +398,14 @@ fn test_tie_breaker(
         payer: &context.payer,
         authority: operator1,
     };
-    let tx = send_init_ballot_box(tx_sender1, ballot_box_pda)?;
+    let tx = send_init_ballot_box(tx_sender1, ballot_box_pda, snapshot_slot)?;
     let (slot_created, tx_block_time) = fetch_tx_block_details(program, tx);
     let epoch_info = program.rpc().get_epoch_info()?;
     let vote_expiry_timestamp = tx_block_time + VOTE_DURATION;
 
+    let program_config: ProgramConfig = program.account(context.program_config_pda)?;
     let ballot_box: BallotBox = program.account(ballot_box_pda)?;
-    assert_eq!(ballot_box.ballot_id, 1);
+    assert_eq!(ballot_box.snapshot_slot, snapshot_slot);
     assert_eq!(ballot_box.bump, bump);
     assert_eq!(ballot_box.epoch, epoch_info.epoch);
     assert_eq!(ballot_box.slot_created, slot_created);
@@ -417,6 +415,8 @@ fn test_tie_breaker(
     assert_eq!(ballot_box.operator_votes.len(), 0);
     assert_eq!(ballot_box.ballot_tallies.len(), 0);
     assert_eq!(ballot_box.vote_expiry_timestamp, vote_expiry_timestamp);
+    assert_eq!(ballot_box.voter_list, program_config.whitelisted_operators);
+    assert_eq!(ballot_box.tie_breaker_consensus, false);
 
     let ballot1 = Ballot {
         meta_merkle_root: [1; 32],
@@ -491,7 +491,7 @@ fn test_tie_breaker(
         payer: &context.payer,
         authority: &context.payer,
     };
-    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, 0);
+    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, ballot1.clone());
     assert_client_err(tx, "Voting not expired");
 
     // Sleep till expiry
@@ -500,12 +500,12 @@ fn test_tie_breaker(
     let sleep_duration = vote_expiry_timestamp - current_time + 2;
     thread::sleep(Duration::from_secs(sleep_duration as u64));
 
-    // Invalid tie breaker index should fail.
-    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, 5);
-    assert_client_err(tx, "Invalid ballot index");
-
-    // Set tie breaker vote after expiry.
-    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, 0)?;
+    // Set tie breaker vote after expiry (can set any ballot, not just existing ones).
+    let winning_ballot = Ballot {
+        meta_merkle_root: [222; 32],
+        snapshot_hash: [222; 32],
+    };
+    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, winning_ballot.clone())?;
     let (consensus_slot, _tx_block_time) = fetch_tx_block_details(program, tx);
 
     // Casting vote after expiry should fail.
@@ -521,20 +521,105 @@ fn test_tie_breaker(
     // Verify that consensus is reached.
     let ballot_box: BallotBox = program.account(ballot_box_pda)?;
     assert_eq!(ballot_box.slot_consensus_reached, consensus_slot);
-    assert_eq!(ballot_box.winning_ballot, ballot1);
+    assert_eq!(ballot_box.winning_ballot, winning_ballot);
     assert_eq!(ballot_box.operator_votes, expected_operator_votes);
     assert_eq!(ballot_box.ballot_tallies, expected_ballot_tallies);
+    assert_eq!(ballot_box.tie_breaker_consensus, true);
 
     // Finalize ballot after consensus.
-    let (consensus_result_pda, _bump) = ConsensusResult::pda(1);
+    let (consensus_result_pda, _bump) = ConsensusResult::pda(snapshot_slot);
     send_finalize_ballot(tx_sender, ballot_box_pda, consensus_result_pda)?;
     let consensus_result: ConsensusResult = program.account(consensus_result_pda)?;
-    assert_eq!(consensus_result.ballot_id, ballot_box.ballot_id);
+    assert_eq!(consensus_result.snapshot_slot, snapshot_slot);
     assert_eq!(consensus_result.ballot, ballot_box.winning_ballot);
+    assert_eq!(consensus_result.tie_breaker_consensus, true);
 
     // Setting tie breaker vote after consensus fails.
-    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, 0);
+    let tx = send_set_tie_breaker(tx_sender_admin, ballot_box_pda, ballot1.clone());
     assert_client_err(tx, "Consensus has reached");
+
+    Ok(())
+}
+
+fn test_reset_ballot_box(
+    program: &Program<&Keypair>,
+    context: &ProgramTestContext,
+) -> Result<(), ClientError> {
+    // 1) Create a new ballot box
+    let snapshot_slot = context.snapshot_slot;
+    let (ballot_box_pda, bump) = BallotBox::pda(snapshot_slot);
+
+    let tx_sender_operator = &TxSender {
+        program,
+        micro_lamports: None,
+        payer: &context.payer,
+        authority: &context.operators[0],
+    };
+
+    let tx = send_init_ballot_box(tx_sender_operator, ballot_box_pda, snapshot_slot)?;
+    let (_, tx_block_time) = fetch_tx_block_details(program, tx);
+    let vote_expiry_timestamp = tx_block_time + VOTE_DURATION;
+
+    // Fill ballot box with null votes (except final vote)
+    let mut ballots = vec![];
+    for i in 0..(MAX_BALLOT_TALLIES - 1) {
+        let ballot = Ballot {
+            meta_merkle_root: {
+                let mut root = [0u8; 32];
+                root[0] = (i as u8).wrapping_add(100);
+                root
+            },
+            snapshot_hash: {
+                let mut hash = [0u8; 32];
+                hash[0] = (i as u8).wrapping_add(200);
+                hash
+            },
+        };
+        ballots.push(ballot);
+    }
+
+    // Chunk ballots into groups of 8
+    let chunks = ballots.chunks(8);
+    let chunks_len = chunks.len();
+    for (i, chunk) in chunks.enumerate() {
+        send_cast_and_remove_votes(tx_sender_operator, ballot_box_pda, chunk.to_vec())?;
+    }
+
+    // Reset ballot box should fail since box is not full
+    let tx_sender_admin = &TxSender {
+        program,
+        micro_lamports: None,
+        payer: &context.payer,
+        authority: &context.payer,
+    };
+    let tx = send_reset_ballot_box(tx_sender_admin, ballot_box_pda);
+    assert_client_err(tx, "Ballot tallies not at max length");
+
+    // Cast final vote
+    let final_ballot = Ballot {
+        meta_merkle_root: [222; 32],
+        snapshot_hash: [222; 32],
+    };
+    send_cast_vote(tx_sender_operator, ballot_box_pda, final_ballot)?;
+
+    // Verify ballot box tallies is at max capacity, with only one operator vote
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
+    assert_eq!(ballot_box.ballot_tallies.len(), MAX_OPERATOR_VOTES);
+    assert_eq!(ballot_box.operator_votes.len(), 1);
+
+    // Reset ballot box should succeed
+    send_reset_ballot_box(tx_sender_admin, ballot_box_pda)?;
+
+    // Verify that votes and tallies are cleared
+    let ballot_box: BallotBox = program.account(ballot_box_pda)?;
+    assert_eq!(ballot_box.operator_votes.len(), 0);
+    assert_eq!(ballot_box.ballot_tallies.len(), 0);
+    // Other fields should remain unchanged
+    assert_eq!(ballot_box.snapshot_slot, snapshot_slot);
+    assert_eq!(ballot_box.bump, bump);
+    assert_eq!(ballot_box.slot_consensus_reached, 0);
+    assert_eq!(ballot_box.tie_breaker_consensus, false);
+    assert_eq!(ballot_box.vote_expiry_timestamp, vote_expiry_timestamp);
 
     Ok(())
 }
@@ -543,6 +628,7 @@ fn test_merkle_proofs(
     program: &Program<&Keypair>,
     context: &ProgramTestContext,
 ) -> Result<(), ClientError> {
+    let snapshot_slot = context.snapshot_slot;
     let tx_sender = &TxSender {
         program,
         micro_lamports: Some(100),
@@ -554,7 +640,7 @@ fn test_merkle_proofs(
     let meta_proof = bundle.proof.clone().unwrap();
     let meta_leaf = bundle.meta_merkle_leaf.clone();
 
-    let (consensus_result_pda, _bump) = ConsensusResult::pda(0);
+    let (consensus_result_pda, _bump) = ConsensusResult::pda(snapshot_slot);
     let (merkle_proof_pda, _bump) =
         MetaMerkleProof::pda(&consensus_result_pda, &meta_leaf.vote_account);
 
@@ -612,6 +698,7 @@ fn test_invalid_merkle_proofs(
     program: &Program<&Keypair>,
     context: &ProgramTestContext,
 ) -> Result<(), ClientError> {
+    let snapshot_slot = context.snapshot_slot;
     let tx_sender = &TxSender {
         program,
         micro_lamports: Some(100),
@@ -625,7 +712,7 @@ fn test_invalid_merkle_proofs(
     let meta_proof1 = bundle1.proof.clone().unwrap();
     let meta_proof2 = bundle2.proof.clone().unwrap();
 
-    let (consensus_result_pda, _bump) = ConsensusResult::pda(0);
+    let (consensus_result_pda, _bump) = ConsensusResult::pda(snapshot_slot);
     let (merkle_proof_pda, _bump) =
         MetaMerkleProof::pda(&consensus_result_pda, &meta_leaf1.vote_account);
 
@@ -692,7 +779,9 @@ fn main() {
     println!("path {}", path);
     let meta_merkle_snapshot = MetaMerkleSnapshot::read(path.into(), true).unwrap();
 
-    let context = ProgramTestContext {
+    let current_slot = program.rpc().get_slot().unwrap();
+    let mut context = ProgramTestContext {
+        snapshot_slot: current_slot + 1000,
         payer: payer.insecure_clone(),
         program_config_pda,
         operators: operator_keypairs,
@@ -702,5 +791,10 @@ fn main() {
     test_balloting(&program, &context).unwrap();
     test_merkle_proofs(&program, &context).unwrap();
     test_invalid_merkle_proofs(&program, &context).unwrap();
+
+    context.snapshot_slot = context.snapshot_slot + 2000;
     test_tie_breaker(&program, &context).unwrap();
+
+    context.snapshot_slot = context.snapshot_slot + 3000;
+    test_reset_ballot_box(&program, &context).unwrap();
 }
