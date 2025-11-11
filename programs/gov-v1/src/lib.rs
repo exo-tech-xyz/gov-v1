@@ -11,7 +11,7 @@ use anchor_lang::prelude::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("Dx6SGfGoXipHA4bmtGxZ6DQXztRoKmuX6fx3EMouigHX");
+declare_id!("66R5ByTjyA1SvxB5aJxMWipYjkSjTuQzUL7mJaro5BXc");
 
 #[program]
 pub mod gov_v1 {
