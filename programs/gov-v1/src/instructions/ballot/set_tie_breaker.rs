@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{error::ErrorCode, BallotBox, ProgramConfig};
+use crate::{error::ErrorCode, Ballot, BallotBox, ProgramConfig};
 
 #[derive(Accounts)]
 pub struct SetTieBreaker<'info> {
@@ -11,7 +11,7 @@ pub struct SetTieBreaker<'info> {
     pub program_config: Box<Account<'info, ProgramConfig>>,
 }
 
-pub fn handler(ctx: Context<SetTieBreaker>, ballot_index: u8) -> Result<()> {
+pub fn handler(ctx: Context<SetTieBreaker>, ballot: Ballot) -> Result<()> {
     let ballot_box = &mut ctx.accounts.ballot_box;
     let clock = Clock::get()?;
     require!(
@@ -22,15 +22,10 @@ pub fn handler(ctx: Context<SetTieBreaker>, ballot_index: u8) -> Result<()> {
         !ballot_box.has_consensus_reached(),
         ErrorCode::ConsensusReached
     );
-    require!(
-        (ballot_index as usize) < ballot_box.ballot_tallies.len(),
-        ErrorCode::InvalidBallotIndex
-    );
 
     ballot_box.slot_consensus_reached = clock.slot;
-    ballot_box.winning_ballot = ballot_box.ballot_tallies[ballot_index as usize]
-        .ballot
-        .clone();
+    ballot_box.winning_ballot = ballot;
+    ballot_box.tie_breaker_consensus = true;
 
     Ok(())
 }

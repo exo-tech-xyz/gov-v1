@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use anchor_lang::prelude::*;
 
-const MAX_OPERATOR_WHITELIST: usize = 64;
+pub const MAX_OPERATOR_WHITELIST: usize = 64;
 
 #[derive(InitSpace, Debug)]
 #[account]
@@ -13,14 +13,13 @@ pub struct ProgramConfig {
     /// Authority to be set to upon finalization of proposal.
     pub proposed_authority: Option<Pubkey>,
     /// Operators whitelisted to participate in voting.
+    /// A snapshot of this list will be taken at the time of BallotBox creation.
     #[max_len(MAX_OPERATOR_WHITELIST)]
     pub whitelisted_operators: Vec<Pubkey>,
     /// Min. percentage of votes required to finalize a ballot. Used during BallotBox creation.
     pub min_consensus_threshold_bps: u16,
     /// Admin allowed to decide the winning ballot if vote expires before consensus.
     pub tie_breaker_admin: Pubkey,
-    /// ID for next BallotBox
-    pub next_ballot_id: u64,
     /// Duration for which ballot box will be opened for voting.
     pub vote_duration: i64,
 }
@@ -53,14 +52,6 @@ impl ProgramConfig {
                 ErrorCode::VecFull
             );
         }
-        Ok(())
-    }
-
-    pub fn contains_operator(&self, operator: &Pubkey) -> Result<()> {
-        require!(
-            self.whitelisted_operators.contains(operator),
-            ErrorCode::OperatorNotWhitelisted
-        );
         Ok(())
     }
 }

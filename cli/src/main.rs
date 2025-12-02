@@ -149,14 +149,13 @@ pub enum Commands {
         vote_duration: Option<i64>,
     },
     FinalizeProposedAuthority {},
-    InitBallotBox {},
     FinalizeBallot {
-        #[arg(long, help = "Id of ballot box")]
-        id: u64,
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
     },
     CastVote {
-        #[arg(long, help = "Id of ballot box")]
-        id: u64,
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
 
         #[arg(long, value_parser = parse_base_58_32, help = "Meta merkle tree root, base-58 encoded.")]
         root: [u8; 32],
@@ -165,8 +164,8 @@ pub enum Commands {
         hash: [u8; 32],
     },
     CastVoteFromSnapshot {
-        #[arg(long, help = "Id of ballot box")]
-        id: u64,
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
 
         #[arg(long, env, help = "Path to read meta merkle tree")]
         read_path: PathBuf,
@@ -175,19 +174,26 @@ pub enum Commands {
         is_compressed: bool,
     },
     RemoveVote {
-        #[arg(long, help = "Id of ballot box")]
-        id: u64,
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
     },
     SetTieBreaker {
-        #[arg(long, help = "Id of ballot box")]
-        id: u64,
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
 
-        #[arg(long, help = "Index in ballot tallies to set as winning ballot")]
-        idx: u8,
+        #[arg(long, value_parser = parse_base_58_32, help = "Meta merkle tree root, base-58 encoded.")]
+        root: [u8; 32],
+
+        #[arg(long, value_parser = parse_base_58_32, help = "SHA256 hash of the meta merkle snapshot, base-58 encoded.")]
+        hash: [u8; 32],
+    },
+    ResetBallotBox {
+        #[arg(long, help = "Snapshot slot of ballot box")]
+        snapshot_slot: u64,
     },
     Log {
-        #[arg(long, help = "Id of ballot box to fetch")]
-        id: Option<u64>,
+        #[arg(long, help = "Snapshot slot of ballot box or consensus result")]
+        snapshot_slot: Option<u64>,
 
         #[arg(long, value_parser = parse_pubkey)]
         vote_account: Option<Pubkey>,
@@ -215,7 +221,7 @@ fn main() -> Result<()> {
         client.program(gov_v1::id()).unwrap()
     }
 
-    fn cast_vote_shared(cli: Cli, id: u64, root: [u8; 32], hash: [u8; 32]) -> Result<()> {
+    fn cast_vote_shared(cli: Cli, snapshot_slot: u64, root: [u8; 32], hash: [u8; 32]) -> Result<()> {
         let payer = read_keypair_file(&cli.payer_path).unwrap();
         let authority = read_keypair_file(&cli.authority_path).unwrap();
         let program = load_client_program(&payer, cli.rpc_url);
@@ -226,7 +232,7 @@ fn main() -> Result<()> {
             payer: &payer,
             authority: &authority,
         };
-        let ballot_box_pda = BallotBox::pda(id).0;
+        let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
         let tx = send_cast_vote(
             tx_sender,
             ballot_box_pda,
@@ -237,7 +243,7 @@ fn main() -> Result<()> {
         )?;
         info!("Transaction sent: {}", tx);
 
-        info!("== Voted For Ballot Box {:?} ==", id);
+        info!("== Voted For Ballot Box (snapshot_slot: {}) ==", snapshot_slot);
         info!("Merkle Root: {}", bs58::encode(root).into_string());
         info!("Snapshot Hash: {}", bs58::encode(hash).into_string());
 
@@ -247,7 +253,7 @@ fn main() -> Result<()> {
     match cli.command {
         // === On-chain Instructions ===
         Commands::Log {
-            id,
+            snapshot_slot,
             vote_account,
             ty,
         } => {
@@ -261,17 +267,17 @@ fn main() -> Result<()> {
                 }
                 LogType::BallotBox => {
                     let data: BallotBox =
-                        program.account(BallotBox::pda(id.expect("Missing --id argument")).0)?;
+                        program.account(BallotBox::pda(snapshot_slot.expect("Missing --snapshot-slot argument")).0)?;
                     println!("{:?}", data);
                 }
                 LogType::ConsensusResult => {
                     let data: ConsensusResult = program
-                        .account(ConsensusResult::pda(id.expect("Missing --id argument")).0)?;
+                        .account(ConsensusResult::pda(snapshot_slot.expect("Missing --snapshot-slot argument")).0)?;
                     println!("{:?}", data);
                 }
                 LogType::MetaMerkleProof => {
                     let consensus_result_pda =
-                        ConsensusResult::pda(id.expect("Missing --id argument")).0;
+                        ConsensusResult::pda(snapshot_slot.expect("Missing --snapshot-slot argument")).0;
                     let data: MetaMerkleProof = program.account(
                         MetaMerkleProof::pda(
                             &consensus_result_pda,
@@ -358,29 +364,9 @@ fn main() -> Result<()> {
             let tx = send_finalize_proposed_authority(tx_sender)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::InitBallotBox {} => {
-            info!("InitBallotBox...");
-
-            let payer = read_keypair_file(&cli.payer_path).unwrap();
-            let authority = read_keypair_file(&cli.authority_path).unwrap();
-            let program = load_client_program(&payer, cli.rpc_url);
-
-            let program_config_pda = ProgramConfig::pda().0;
-            let program_config: ProgramConfig = program.account(program_config_pda)?;
-            let ballot_box_pda = BallotBox::pda(program_config.next_ballot_id).0;
-
-            let tx_sender = &TxSender {
-                program: &program,
-                micro_lamports: cli.micro_lamports,
-                payer: &payer,
-                authority: &authority,
-            };
-            let tx = send_init_ballot_box(tx_sender, ballot_box_pda)?;
-            info!("Transaction sent: {}", tx);
-        }
-        Commands::CastVote { id, root, hash } => cast_vote_shared(cli, id, root, hash)?,
+        Commands::CastVote { snapshot_slot, root, hash } => cast_vote_shared(cli, snapshot_slot, root, hash)?,
         Commands::CastVoteFromSnapshot {
-            id,
+            snapshot_slot,
             ref read_path,
             is_compressed,
         } => {
@@ -389,16 +375,16 @@ fn main() -> Result<()> {
 
             let snapshot_hash =
                 MetaMerkleSnapshot::snapshot_hash(read_path.clone(), is_compressed)?;
-            cast_vote_shared(cli, id, snapshot.root, snapshot_hash.to_bytes())?;
+            cast_vote_shared(cli, snapshot_slot, snapshot.root, snapshot_hash.to_bytes())?;
         }
-        Commands::RemoveVote { id } => {
+        Commands::RemoveVote { snapshot_slot } => {
             info!("RemoveVote...");
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
 
-            let ballot_box_pda = BallotBox::pda(id).0;
+            let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
             let tx_sender = &TxSender {
                 program: &program,
                 micro_lamports: cli.micro_lamports,
@@ -408,13 +394,13 @@ fn main() -> Result<()> {
             let tx = send_remove_vote(tx_sender, ballot_box_pda)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::SetTieBreaker { id, idx } => {
+        Commands::SetTieBreaker { snapshot_slot, root, hash } => {
             info!("SetTieBreaker...");
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let authority = read_keypair_file(&cli.authority_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
-            let ballot_box_pda = BallotBox::pda(id).0;
+            let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
 
             let tx_sender = &TxSender {
                 program: &program,
@@ -422,17 +408,38 @@ fn main() -> Result<()> {
                 payer: &payer,
                 authority: &authority,
             };
-            let tx = send_set_tie_breaker(tx_sender, ballot_box_pda, idx)?;
+            let ballot = Ballot {
+                meta_merkle_root: root,
+                snapshot_hash: hash,
+            };
+            let tx = send_set_tie_breaker(tx_sender, ballot_box_pda, ballot)?;
             info!("Transaction sent: {}", tx);
         }
-        Commands::FinalizeBallot { id } => {
+        Commands::ResetBallotBox { snapshot_slot } => {
+            info!("ResetBallotBox...");
+
+            let payer = read_keypair_file(&cli.payer_path).unwrap();
+            let authority = read_keypair_file(&cli.authority_path).unwrap();
+            let program = load_client_program(&payer, cli.rpc_url);
+            let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
+
+            let tx_sender = &TxSender {
+                program: &program,
+                micro_lamports: cli.micro_lamports,
+                payer: &payer,
+                authority: &authority,
+            };
+            let tx = send_reset_ballot_box(tx_sender, ballot_box_pda)?;
+            info!("Transaction sent: {}", tx);
+        }
+        Commands::FinalizeBallot { snapshot_slot } => {
             info!("FinalizeBallot...");
 
             let payer = read_keypair_file(&cli.payer_path).unwrap();
             let program = load_client_program(&payer, cli.rpc_url);
 
-            let ballot_box_pda = BallotBox::pda(id).0;
-            let consensus_result_pda = ConsensusResult::pda(id).0;
+            let ballot_box_pda = BallotBox::pda(snapshot_slot).0;
+            let consensus_result_pda = ConsensusResult::pda(snapshot_slot).0;
             let tx_sender = &TxSender {
                 program: &program,
                 micro_lamports: cli.micro_lamports,

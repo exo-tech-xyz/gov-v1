@@ -5,14 +5,19 @@ use crate::Ballot;
 #[account]
 #[derive(InitSpace, Debug)]
 pub struct ConsensusResult {
-    /// Ballot ID
-    pub ballot_id: u64,
+    /// Snapshot slot used for the ballot box
+    pub snapshot_slot: u64,
     /// Ballot
     pub ballot: Ballot,
+    /// Whether consensus was reached via tie breaker
+    pub tie_breaker_consensus: bool,
 }
 
 impl ConsensusResult {
-    pub fn pda(ballot_id: u64) -> (Pubkey, u8) {
-        Pubkey::find_program_address(&[b"ConsensusResult", &ballot_id.to_le_bytes()], &crate::ID)
+    pub fn pda(snapshot_slot: u64) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[b"ConsensusResult", &snapshot_slot.to_le_bytes()],
+            &crate::ID,
+        )
     }
 }

@@ -137,7 +137,6 @@ pub fn send_cast_vote(
         .accounts(accounts::CastVote {
             operator: tx_sender.authority.pubkey(),
             ballot_box,
-            program_config: ProgramConfig::pda().0,
         })
         .args(instruction::CastVote { ballot })
         .instructions()?;
@@ -145,21 +144,56 @@ pub fn send_cast_vote(
     tx_sender.send(ixs)
 }
 
+pub fn send_cast_and_remove_votes(
+    tx_sender: &TxSender,
+    ballot_box: Pubkey,
+    ballots: Vec<Ballot>,
+) -> Result<Signature, ClientError> {
+    let mut ixs = Vec::new();
+    for ballot in ballots {
+        let cast_ix = tx_sender
+            .program
+            .request()
+            .accounts(accounts::CastVote {
+                operator: tx_sender.authority.pubkey(),
+                ballot_box,
+            })
+            .args(instruction::CastVote {
+                ballot: ballot.clone(),
+            })
+            .instructions()?;
+        ixs.extend(cast_ix);
+        let remove_ix = tx_sender
+            .program
+            .request()
+            .accounts(accounts::RemoveVote {
+                operator: tx_sender.authority.pubkey(),
+                ballot_box,
+            })
+            .args(instruction::RemoveVote {})
+            .instructions()?;
+        ixs.extend(remove_ix);
+    }
+    tx_sender.send(ixs)
+}
+
+// Used for testing only. Sends init ballot box using a placeholder signer.
 pub fn send_init_ballot_box(
     tx_sender: &TxSender,
     ballot_box: Pubkey,
+    snapshot_slot: u64,
 ) -> Result<Signature, ClientError> {
     let ixs = tx_sender
         .program
         .request()
         .accounts(accounts::InitBallotBox {
             payer: tx_sender.payer.pubkey(),
-            operator: tx_sender.authority.pubkey(),
+            proposal: tx_sender.authority.pubkey(),
             ballot_box,
             program_config: ProgramConfig::pda().0,
             system_program: system_program::ID,
         })
-        .args(instruction::InitBallotBox {})
+        .args(instruction::InitBallotBox { snapshot_slot, proposal_seed: 0, spl_vote_account: Pubkey::default() })
         .instructions()?;
 
     tx_sender.send(ixs)
@@ -175,7 +209,6 @@ pub fn send_remove_vote(
         .accounts(accounts::RemoveVote {
             operator: tx_sender.authority.pubkey(),
             ballot_box,
-            program_config: ProgramConfig::pda().0,
         })
         .args(instruction::RemoveVote {})
         .instructions()?;
@@ -206,7 +239,7 @@ pub fn send_finalize_ballot(
 pub fn send_set_tie_breaker(
     tx_sender: &TxSender,
     ballot_box: Pubkey,
-    ballot_index: u8,
+    ballot: Ballot,
 ) -> Result<Signature, ClientError> {
     let ixs = tx_sender
         .program
@@ -216,7 +249,25 @@ pub fn send_set_tie_breaker(
             ballot_box,
             program_config: ProgramConfig::pda().0,
         })
-        .args(instruction::SetTieBreaker { ballot_index })
+        .args(instruction::SetTieBreaker { ballot })
+        .instructions()?;
+
+    tx_sender.send(ixs)
+}
+
+pub fn send_reset_ballot_box(
+    tx_sender: &TxSender,
+    ballot_box: Pubkey,
+) -> Result<Signature, ClientError> {
+    let ixs = tx_sender
+        .program
+        .request()
+        .accounts(accounts::ResetBallotBox {
+            tie_breaker_admin: tx_sender.authority.pubkey(),
+            ballot_box,
+            program_config: ProgramConfig::pda().0,
+        })
+        .args(instruction::ResetBallotBox {})
         .instructions()?;
 
     tx_sender.send(ixs)
@@ -290,9 +341,7 @@ pub fn send_close_meta_merkle_proof(
     tx_sender.send(ixs)
 }
 
-pub fn send_finalize_proposed_authority(
-    tx_sender: &TxSender,
-) -> Result<Signature, ClientError> {
+pub fn send_finalize_proposed_authority(tx_sender: &TxSender) -> Result<Signature, ClientError> {
     let ixs = tx_sender
         .program
         .request()
