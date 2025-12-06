@@ -62,10 +62,6 @@ curl -H "X-Metrics-Token: $METRICS_AUTH_TOKEN" http://localhost:3000/admin/stats
 ### Running Tests
 
 ```bash
-# Run all tests with required environment variables
-RESTAKING_PROGRAM_ID=11111111111111111111111111111111 \
-VAULT_PROGRAM_ID=11111111111111111111111111111111 \
-TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111 \
 cargo test --bin verifier-service
 ```
 
