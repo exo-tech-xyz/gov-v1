@@ -350,21 +350,19 @@ faucet-lamports 100000000000 -u testnet --cluster-type testnet
 
 ### To test snapshotting with localnet:
 
-1. Environment variables are configured in `.cargo/config.toml` and will be automatically loaded by Cargo. No manual export is required.
-
-2. Start validator with
+1. Start validator with
 
 ```
 solana-test-validator
 ```
 
-3. Run CLI for generating ledger snapshot for a slot (e.g. 100)
+2. Run CLI for generating ledger snapshot for a slot (e.g. 100)
 
 ```
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 100
 ```
 
-4. Run CLI for generating the MeteMerkleSnapshot from the ledger snapshot
+3. Run CLI for generating the MeteMerkleSnapshot from the ledger snapshot
 
 ```
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340
@@ -386,16 +384,15 @@ wget --trust-server-names http://38.147.105.98:8899/snapshot.tar.bz2
 wget http://160.202.131.117:8899/genesis.tar.bz2
 ```
 
-3. Extract snapshot
+3. Extract snapshot and genesis
 
 ```
+tar -xf snapshot.tar.bz2 -C test-ledger/
 tar -xf genesis.tar.bz2 -C test-ledger/
 ```
 
 4. Move snapshot to `test-ledger/backup-snapshots/`.
-5. Environment variables are configured in `.cargo/config.toml` and will be automatically loaded by Cargo. No manual export is required.
-
-6. Clear temp files from `test-ledger` directory after generating.
+5. Clear temp files from `test-ledger` directory after generating.
 
 ```
 find test-ledger -mindepth 1 -maxdepth 1 \
