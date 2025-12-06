@@ -78,8 +78,16 @@ If a vote account delegated to is missing (closed by the manager), the system wi
 
 ## Dependencies
 
-1. Clone `jito-tip-router` to parent directory and switch to `756b13ad0de2b608b9b036b5eb579f99ab94082d` commit.
+1. Clone `jito-tip-router` from the **exo-tech-xyz** fork to parent directory and switch to the `gov-v1` branch:
+   ```bash
+   git clone https://github.com/exo-tech-xyz/jito-tip-router.git ../jito-tip-router
+   cd ../jito-tip-router
+   git checkout gov-v1
+   cd ../gov-v1
+   ```
+
 2. (Optional, in case branch no longer exists) In the cloned repo, modify references of `branch = "v2.2-upgrade"` to `rev = "7452e90ffe1f9686c561a4f30c2caed500048a42"` in `Cargo.lock` and `Cargo.toml`.
+
 3. Ensure system is using Rust Version `1.86.0`, otherwise install with:
 
 ```bash
@@ -116,13 +124,7 @@ All commands assume:
 
 Use `RUST_LOG=info` to enable logs.
 
-Setup env variables:
-
-```bash
-export RESTAKING_PROGRAM_ID=RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q
-export VAULT_PROGRAM_ID=Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8
-export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
-```
+**Note:** Environment variables (`RESTAKING_PROGRAM_ID`, `VAULT_PROGRAM_ID`, `TIP_ROUTER_PROGRAM_ID`) are configured in `.cargo/config.toml` and will be automatically loaded by Cargo during builds. No manual export is required.
 
 ---
 
@@ -376,27 +378,19 @@ faucet-lamports 100000000000 -u testnet --cluster-type testnet
 
 ### To test snapshotting with localnet:
 
-1. Setup cli env
-
-```
-export RESTAKING_PROGRAM_ID=RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q
-export VAULT_PROGRAM_ID=Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8
-export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
-```
-
-2. Start validator with
+1. Start validator with
 
 ```
 solana-test-validator
 ```
 
-3. Run CLI for generating ledger snapshot for a slot (e.g. 100)
+2. Run CLI for generating ledger snapshot for a slot (e.g. 100)
 
 ```
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots snapshot-slot --slot 100
 ```
 
-4. Run CLI for generating the MeteMerkleSnapshot from the ledger snapshot
+3. Run CLI for generating the MeteMerkleSnapshot from the ledger snapshot
 
 ```
 RUST_LOG=info,solana_runtime=warn,solana_accounts_db=warn,solana_metrics=warn cargo run --bin cli -- --ledger-path test-ledger --full-snapshots-path test-ledger/backup-snapshots --backup-snapshots-dir test-ledger/backup-snapshots generate-meta-merkle --slot 340850340
@@ -418,21 +412,14 @@ wget --trust-server-names http://38.147.105.98:8899/snapshot.tar.bz2
 wget http://160.202.131.117:8899/genesis.tar.bz2
 ```
 
-3. Extract snapshot
+3. Extract snapshot and genesis
 
 ```
+tar -xf snapshot.tar.bz2 -C test-ledger/
 tar -xf genesis.tar.bz2 -C test-ledger/
 ```
 
 4. Move snapshot to `test-ledger/backup-snapshots/`.
-5. Setup cli env (if needed)
-
-```
-export RESTAKING_PROGRAM_ID=RestkWeAVL8fRGgzhfeoqFhsqKRchg6aa1XrcH96z4Q
-export VAULT_PROGRAM_ID=Vau1t6sLNxnzB7ZDsef8TLbPLfyZMYXH8WTNqUdm9g8
-export TIP_ROUTER_PROGRAM_ID=11111111111111111111111111111111
-```
-
 5. Clear temp files from `test-ledger` directory after generating.
 
 ```
