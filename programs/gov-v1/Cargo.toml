@@ -1,7 +1,7 @@
 [package]
 name = "gov-v1"
-version = "0.1.0"
-description = "Created with Anchor"
+version = "1.0.0"
+description = "Governance NCN Voting Program"
 edition = "2021"
 
 [lib]
@@ -19,5 +19,5 @@ skip-pda-check = []
 
 
 [dependencies]
-anchor-lang = "0.31.1"
+anchor-lang = { workspace = true }
 

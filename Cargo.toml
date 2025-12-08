@@ -1,9 +1,9 @@
 [workspace]
 members = [
     "cli",
-    # "programs/*",
-    # "tests",
-    # "verifier-service"
+    "programs/*",
+    "tests",
+    "verifier-service"
 ]
 
 resolver = "2"
@@ -24,9 +24,13 @@ meta-merkle-tree= { path = "../jito-tip-router/meta_merkle_tree/" }
 tip-router-operator-cli = { path = "../jito-tip-router/tip-router-operator-cli/" }
 solana-accounts-db = { package = "solana-accounts-db", git = "https://github.com/jito-foundation/jito-solana.git", rev = "93c4da92ba1f2db5963a3ba678d6c34b123cca5a" }
 solana-runtime = { package = "solana-runtime", git = "https://github.com/jito-foundation/jito-solana.git", rev = "93c4da92ba1f2db5963a3ba678d6c34b123cca5a" }
+solana-vote-program = { package = "solana-vote-program", git = "https://github.com/jito-foundation/jito-solana.git", rev = "93c4da92ba1f2db5963a3ba678d6c34b123cca5a" }
+solana-vote = { package = "solana-vote", git = "https://github.com/jito-foundation/jito-solana.git", rev = "93c4da92ba1f2db5963a3ba678d6c34b123cca5a" }
 solana-program = { version = "3.0.0", default-features = false, features = [] }
 solana-sdk = "=3.0.0"
-anchor-lang = { git = "https://github.com/coral-xyz/anchor", rev = "96ed3b791c6fed9ab64cb138397795fe55991280" }
+solana-stake-interface = { version = "2.0.1", features = ["sysvar"] }
+anchor-lang = "0.31.1"
+anchor-client = "0.31.1"
 
 [patch.crates-io]
 solana-account-decoder = { package = "solana-account-decoder", git = "https://github.com/jito-foundation/jito-solana.git", rev = "93c4da92ba1f2db5963a3ba678d6c34b123cca5a" }
