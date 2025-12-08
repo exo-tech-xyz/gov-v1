@@ -87,15 +87,15 @@ If a vote account delegated to is missing (closed by the manager), the system wi
    cd ../gov-v1
    ```
 
-2. (Optional, in case branch no longer exists) In the cloned repo, modify references of `branch = "v2.2-upgrade"` to `rev = "7452e90ffe1f9686c561a4f30c2caed500048a42"` in `Cargo.lock` and `Cargo.toml`.
-
-3. Ensure system is using Rust Version `1.89.0`, otherwise install with:
+2. Ensure system is using Rust Version `1.89.0`, otherwise install with:
 
 ```bash
 rustup toolchain install 1.89.0 // install
 rustup default 1.89.0 // set as default
 rustc --version // verify version
 ```
+
+3. (Optional - when using Anchor CLI) Install Solana CLI version 3.0 or higher. The bundled rustc in older Solana CLI versions may not be compatible with some dependencies.
 
 4. Build repo with `cargo build`
 
