@@ -59,3 +59,7 @@ pub fn parse_incremental_snapshot_slots(name: &str) -> Option<(u64, u64)> {
     let end = parts.next()?.parse::<u64>().ok()?;
     Some((start, end))
 }
+
+pub fn solana_to_anchor_pubkey(pubkey: Pubkey) -> anchor_lang::prelude::Pubkey {
+    anchor_lang::prelude::Pubkey::from(pubkey.to_bytes())
+}

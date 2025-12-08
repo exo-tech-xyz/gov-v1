@@ -11,7 +11,10 @@ tip-router-operator-cli = { workspace = true }
 solana-accounts-db = { workspace = true }
 solana-runtime = { workspace = true }
 solana-program = { workspace = true }
+solana-vote-program = { workspace = true }
+solana-vote = { workspace = true }
 solana-sdk = { workspace = true }
+solana-stake-interface = { workspace = true }
 anchor-lang = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
