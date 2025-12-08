@@ -1714,7 +1714,7 @@ checksum = "b94f61472cee1439c0b966b47e3aca9ae07e45d070759512cd390ea2bebc6675"
 
 [[package]]
 name = "cli"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anchor-client",
  "anchor-lang 0.31.1",
@@ -3080,7 +3080,7 @@ dependencies = [
 
 [[package]]
 name = "gov-v1"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anchor-lang 0.31.1",
 ]
@@ -13849,7 +13849,7 @@ checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
 
 [[package]]
 name = "tests"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anchor-client",
  "borsh 0.10.4",
