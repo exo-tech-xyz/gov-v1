@@ -12,7 +12,7 @@ use clap::Parser;
 use cli::{generate_meta_merkle_snapshot, utils::*, MetaMerkleSnapshot};
 use gov_v1::{Ballot, BallotBox, ConsensusResult, MetaMerkleProof, ProgramConfig};
 use log::info;
-use solana_sdk::signer::Signer;
+use anchor_client::solana_sdk::signature::Signer;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::{collections::HashMap, fs, process::Command, thread, time::Duration};

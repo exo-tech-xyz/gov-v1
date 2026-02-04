@@ -33,7 +33,7 @@ log = { workspace = true }
 env_logger = { workspace = true }
 anchor-lang = { workspace = true }
 solana-sdk = { workspace = true }
-gov-v1 = { version = "0.1.0", path = "../programs/gov-v1" }
+gov-v1 = { path = "../programs/gov-v1" }
 borsh = { version = "1.5.7" }
 bs58 = "0.5"
 meta-merkle-tree = { workspace = true }

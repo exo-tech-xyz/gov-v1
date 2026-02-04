@@ -4,12 +4,13 @@ use anchor_client::{
         pubkey::Pubkey,
         signature::{Keypair, Signature},
         signer::Signer,
+        instruction::Instruction,
+        transaction::Transaction,
+        compute_budget::ComputeBudgetInstruction,
     },
     ClientError, Program,
 };
 use gov_v1::{accounts, instruction, Ballot, MetaMerkleLeaf, ProgramConfig, StakeMerkleLeaf};
-use solana_sdk::instruction::Instruction;
-use solana_sdk::{compute_budget::ComputeBudgetInstruction, transaction::Transaction};
 
 pub struct TxSender<'a> {
     pub program: &'a Program<&'a Keypair>,

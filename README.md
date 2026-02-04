@@ -79,6 +79,7 @@ If a vote account delegated to is missing (closed by the manager), the system wi
 ## Dependencies
 
 1. Clone `jito-tip-router` from the **exo-tech-xyz** fork to parent directory and switch to the `gov-v1` branch:
+
    ```bash
    git clone https://github.com/exo-tech-xyz/jito-tip-router.git ../jito-tip-router
    cd ../jito-tip-router
@@ -86,15 +87,15 @@ If a vote account delegated to is missing (closed by the manager), the system wi
    cd ../gov-v1
    ```
 
-2. (Optional, in case branch no longer exists) In the cloned repo, modify references of `branch = "v2.2-upgrade"` to `rev = "7452e90ffe1f9686c561a4f30c2caed500048a42"` in `Cargo.lock` and `Cargo.toml`.
-
-3. Ensure system is using Rust Version `1.86.0`, otherwise install with:
+2. Ensure system is using Rust Version `1.89.0`, otherwise install with:
 
 ```bash
-rustup toolchain install 1.86.0 // install
-rustup default 1.86.0 // set as default
+rustup toolchain install 1.89.0 // install
+rustup default 1.89.0 // set as default
 rustc --version // verify version
 ```
+
+3. (Optional - when using Anchor CLI) Install Solana CLI version 3.0 or higher. The bundled rustc in older Solana CLI versions may not be compatible with some dependencies.
 
 4. Build repo with `cargo build`
 
@@ -316,6 +317,24 @@ RUST_LOG=info cargo run --bin cli -- \
 ---
 
 ## Troubleshooting
+
+### Dependency Version Conflicts When Upgrading jito-tip-router
+
+When upgrading the `jito-tip-router` dependency to a newer version, you may encounter dependency version conflicts. If you see compilation errors related to version mismatches, run these commands:
+
+- **Update Cargo.lock to force `solana-sysvar` version 3.0.0**: Some dependencies may pull in `solana-sysvar` version 3.1.1, which can cause compilation errors due to missing serde trait implementations. To force the use of version 3.0.0, run:
+
+  ```bash
+  cargo update -p solana-sysvar:3.1.1 --precise 3.0.0
+  ```
+
+- **Update Cargo.lock to force `solana-epoch-rewards-hasher` version 3.0.0**: Some dependencies may pull in `solana-epoch-rewards-hasher` version 3.1.0, which requires `solana-hash` version 4.0.1. However, jito-solana dependencies use `solana-hash` version 3.0.0, causing type mismatch errors. To force the use of version 3.0.0, run:
+
+  ```bash
+  cargo update -p solana-epoch-rewards-hasher:3.1.0 --precise 3.0.0
+  ```
+
+Note: Do not manually edit `Cargo.lock` - always use `cargo update` to modify dependency versions.
 
 ### Missing Incrementatal Snapshot
 
