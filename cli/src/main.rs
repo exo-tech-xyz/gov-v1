@@ -636,6 +636,10 @@ fn main() -> Result<()> {
                         fs::copy(full_path, &dest_full)?;
                         fs::copy(&incr_path, &dest_incr)?;
 
+                        // Validate paths before executing external binary
+                        validate_executable_path(&agave_ledger_tool_path)?;
+                        validate_directory_path(&ledger_path)?;
+
                         // Run agave-ledger-tool to copy ledger into backup directory
                         let end_copy_slot = slot.saturating_add(32);
                         info!(
