@@ -1737,6 +1737,7 @@ dependencies = [
  "solana-vote",
  "solana-vote-program",
  "spl-stake-pool",
+ "tempfile",
  "tip-router-operator-cli",
  "tokio",
 ]
