@@ -36,9 +36,6 @@ anchor-client = "0.31.1"
 solana-account-decoder = { package = "solana-account-decoder", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-account-decoder-client-types = { package = "solana-account-decoder-client-types", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-accounts-db = { package = "solana-accounts-db", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
-solana-banks-client = { package = "solana-banks-client", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
-solana-banks-interface = { package = "solana-banks-interface", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
-solana-banks-server = { package = "solana-banks-server", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-bloom = { package = "solana-bloom", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-bpf-loader-program = { package = "solana-bpf-loader-program", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-bucket-map = { package = "solana-bucket-map", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
@@ -67,7 +64,6 @@ solana-perf = { package = "solana-perf", git = "https://github.com/jito-foundati
 solana-poh = { package = "solana-poh", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-poseidon = { package = "solana-poseidon", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-program-runtime = { package = "solana-program-runtime", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
-solana-program-test = { package = "solana-program-test", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-pubsub-client = { package = "solana-pubsub-client", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-quic-client = { package = "solana-quic-client", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
 solana-rayon-threadlimit = { package = "solana-rayon-threadlimit", git = "https://github.com/jito-foundation/jito-solana.git", rev = "c9205ba7712b5bfda97ace7fc9c354fabaa6457f" }
